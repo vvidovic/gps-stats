@@ -27,16 +27,51 @@ func main() {
 
 	if *versionFlag {
 		showVersion()
-	} else if *helpFlag || len(flag.Args()) < 1 {
+	} else if *helpFlag {
 		showUsage(0)
+	} else if len(flag.Args()) < 1 {
+		showUsage(1)
 	} else {
+		statType := stats.StatNone
+		switch *statTypeFlag {
+		case "all":
+			statType = stats.StatAll
+		case "2s":
+			statType = stats.Stat2s
+		case "10sAvg":
+			statType = stats.Stat10sAvg
+		case "10s1":
+			statType = stats.Stat10s1
+		case "10s2":
+			statType = stats.Stat10s2
+		case "10s3":
+			statType = stats.Stat10s3
+		case "10s4":
+			statType = stats.Stat10s4
+		case "10s5":
+			statType = stats.Stat10s5
+		case "15m":
+			statType = stats.Stat15m
+		case "1h":
+			statType = stats.Stat1h
+		case "100m":
+			statType = stats.Stat100m
+		case "1nm":
+			statType = stats.Stat1nm
+		case "alpha":
+			statType = stats.StatAlpha
+		default:
+			showUsage(2)
+			return
+		}
+
 		for i := 0; i < len(flag.Args()); i++ {
-			printStatsForFile(flag.Args()[i])
+			printStatsForFile(flag.Args()[i], statType)
 		}
 	}
 }
 
-func printStatsForFile(filePath string) {
+func printStatsForFile(filePath string, statType stats.StatFlag) {
 	f, err := os.Open(filePath)
 	if err != nil {
 		return
@@ -55,38 +90,17 @@ func printStatsForFile(filePath string) {
 	ps = stats.CleanUp(ps)
 	pointsCleanedNo := len(ps)
 
-	s := stats.CalculateStats(ps)
+	s := stats.CalculateStats(ps, statType)
 
 	fileName := filepath.Base(f.Name())
-	switch *statTypeFlag {
-	case "all":
+
+	switch statType {
+	case stats.StatAll:
 		fmt.Printf("Found %d track points in '%s', after cleanup %d points left.\n",
 			pointsNo, fileName, pointsCleanedNo)
 		fmt.Print(s.TxtStats())
-	case "2s":
-		fmt.Printf("%s (%s)", s.TxtSingleStat(stats.Stat2s), fileName)
-	case "10sAvg":
-		fmt.Printf("%s (%s)", s.TxtSingleStat(stats.Stat10sAvg), fileName)
-	case "10s1":
-		fmt.Printf("%s (%s)", s.TxtSingleStat(stats.Stat10s1), fileName)
-	case "10s2":
-		fmt.Printf("%s (%s)", s.TxtSingleStat(stats.Stat10s2), fileName)
-	case "10s3":
-		fmt.Printf("%s (%s)", s.TxtSingleStat(stats.Stat10s3), fileName)
-	case "10s4":
-		fmt.Printf("%s (%s)", s.TxtSingleStat(stats.Stat10s4), fileName)
-	case "10s5":
-		fmt.Printf("%s (%s)", s.TxtSingleStat(stats.Stat10s5), fileName)
-	case "15m":
-		fmt.Printf("%s (%s)", s.TxtSingleStat(stats.Stat15m), fileName)
-	case "1h":
-		fmt.Printf("%s (%s)", s.TxtSingleStat(stats.Stat1h), fileName)
-	case "100m":
-		fmt.Printf("%s (%s)", s.TxtSingleStat(stats.Stat100m), fileName)
-	case "1nm":
-		fmt.Printf("%s (%s)", s.TxtSingleStat(stats.Stat1nm), fileName)
-	case "alpha":
-		fmt.Printf("%s (%s)", s.TxtSingleStat(stats.StatAlpha), fileName)
+	default:
+		fmt.Printf("%s (%s)", s.TxtSingleStat(statType), fileName)
 	}
 	fmt.Println("")
 }
@@ -103,25 +117,17 @@ func showUsage(exitStatus int) {
 	fmt.Printf(" %s GPS_data_file1 [GPS_data_file2 ...]\n", os.Args[0])
 	fmt.Println("")
 	fmt.Println("Flags:")
-	fmt.Println("  -h Show usage")
-	fmt.Println("  -v Show version")
-	fmt.Println("Single stat value flags (only one allowed):")
-	fmt.Println("  -2s     Print the 2 second peak speed")
-	fmt.Println("  -10sAvg Print the 5x10 second average speed")
-	fmt.Println("  -10s1   Print the first 10 second peak speed")
-	fmt.Println("  -10s2   Print the second 10 second peak speed")
-	fmt.Println("  -10s3   Print the third 10 second peak speed")
-	fmt.Println("  -10s4   Print the fourth 10 second peak speed")
-	fmt.Println("  -10s5   Print the fifth 10 second peak speed")
-	fmt.Println("  -15m    Print the 15 minute speed")
-	fmt.Println("  -1h     Print the 1 hour speed")
-	fmt.Println("  -100m   Print the 100 meter peak speed")
-	fmt.Println("  -1nm    Print the nautical mile (1582 meter) peak speed")
-	fmt.Println("  -alpha  Print the alpha (max 500 m) peak speed")
+	fmt.Println("  -h Show usage (optional)")
+	fmt.Println("  -v Show version (optional)")
+	fmt.Println("  -t Set the statistics type to print (optional)")
+	fmt.Println("    (all, 2s, 10sAvg, 10s1, 10s2, 10s3, 10s4, 10s5, 15m, 1h, 100m, 1nm, alpha)")
 	fmt.Println("")
-	fmt.Println("Example:")
+	fmt.Println("Examples:")
 	fmt.Printf(" %s my_gps_data.SBN\n", os.Args[0])
 	fmt.Println("   - runs analysis of the SBN data")
+	fmt.Println("")
+	fmt.Printf(" %s -t=1nm *.SBN\n", os.Args[0])
+	fmt.Println("   - runs analysis of multiple SBN data only for 1 NM statistics")
 
 	os.Exit(exitStatus)
 }

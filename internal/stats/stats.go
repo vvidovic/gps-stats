@@ -21,7 +21,9 @@ const (
 type StatFlag int64
 
 const (
-	Stat2s StatFlag = iota
+	StatNone StatFlag = iota
+	StatAll
+	Stat2s
 	Stat10sAvg
 	Stat10s1
 	Stat10s2
@@ -480,7 +482,7 @@ func CleanUp(ps []Point) []Point {
 }
 
 // CalculateStats calculate statistics from cleaned up points.
-func CalculateStats(ps []Point) Stats {
+func CalculateStats(ps []Point, statType StatFlag) Stats {
 	res := Stats{}
 	res.speed5x10s = append(res.speed5x10s,
 		Track{}, Track{}, Track{}, Track{}, Track{})
@@ -493,22 +495,54 @@ func CalculateStats(ps []Point) Stats {
 		trackAlpha500m := Track{}
 		subtrackAlpha500m := Track{}
 
-		track2s = track2s.addPointMinDuration(ps[0], 2)
-		track15m = track15m.addPointMinDuration(ps[0], 900)
-		track1h = track1h.addPointMinDuration(ps[0], 3600)
-		track100m = track100m.addPointMinDistance(ps[0], 100)
-		track1NM = track1NM.addPointMinDistance(ps[0], 1852)
-		trackAlpha500m, subtrackAlpha500m =
-			trackAlpha500m.addPointAlphaMaxDistance(ps[0], 500, 100, 50)
+		switch statType {
+		case StatAll:
+			track2s = track2s.addPointMinDuration(ps[0], 2)
+			track15m = track15m.addPointMinDuration(ps[0], 900)
+			track1h = track1h.addPointMinDuration(ps[0], 3600)
+			track100m = track100m.addPointMinDistance(ps[0], 100)
+			track1NM = track1NM.addPointMinDistance(ps[0], 1852)
+			trackAlpha500m, subtrackAlpha500m =
+				trackAlpha500m.addPointAlphaMaxDistance(ps[0], 500, 100, 50)
+		case Stat2s:
+			track2s = track2s.addPointMinDuration(ps[0], 2)
+		case Stat15m:
+			track15m = track15m.addPointMinDuration(ps[0], 900)
+		case Stat1h:
+			track1h = track1h.addPointMinDuration(ps[0], 3600)
+		case Stat100m:
+			track100m = track100m.addPointMinDistance(ps[0], 100)
+		case Stat1nm:
+			track1NM = track1NM.addPointMinDistance(ps[0], 1852)
+		case StatAlpha:
+			trackAlpha500m, subtrackAlpha500m =
+				trackAlpha500m.addPointAlphaMaxDistance(ps[0], 500, 100, 50)
+		}
 		for i := 1; i < len(ps); i++ {
 			res.totalDistance = res.totalDistance + distance(ps[i-1], ps[i])
-			track2s = track2s.addPointMinDuration(ps[i], 2)
-			track15m = track15m.addPointMinDuration(ps[i], 900)
-			track1h = track1h.addPointMinDuration(ps[i], 3600)
-			track100m = track100m.addPointMinDistance(ps[i], 100)
-			track1NM = track1NM.addPointMinDistance(ps[i], 1852)
-			trackAlpha500m, subtrackAlpha500m =
-				trackAlpha500m.addPointAlphaMaxDistance(ps[i], 500, 100, 50)
+			switch statType {
+			case StatAll:
+				track2s = track2s.addPointMinDuration(ps[i], 2)
+				track15m = track15m.addPointMinDuration(ps[i], 900)
+				track1h = track1h.addPointMinDuration(ps[i], 3600)
+				track100m = track100m.addPointMinDistance(ps[i], 100)
+				track1NM = track1NM.addPointMinDistance(ps[i], 1852)
+				trackAlpha500m, subtrackAlpha500m =
+					trackAlpha500m.addPointAlphaMaxDistance(ps[i], 500, 100, 50)
+			case Stat2s:
+				track2s = track2s.addPointMinDuration(ps[i], 2)
+			case Stat15m:
+				track15m = track15m.addPointMinDuration(ps[i], 900)
+			case Stat1h:
+				track1h = track1h.addPointMinDuration(ps[i], 3600)
+			case Stat100m:
+				track100m = track100m.addPointMinDistance(ps[i], 100)
+			case Stat1nm:
+				track1NM = track1NM.addPointMinDistance(ps[i], 1852)
+			case StatAlpha:
+				trackAlpha500m, subtrackAlpha500m =
+					trackAlpha500m.addPointAlphaMaxDistance(ps[i], 500, 100, 50)
+			}
 			// If any of calculated statistics is prepared (valid) and the statistic
 			//   is a highest one, save it.
 			if track2s.valid && res.speed2s.speed < track2s.speed {
@@ -531,22 +565,26 @@ func CalculateStats(ps []Point) Stats {
 			}
 		}
 
-		// 5 x 10 secs need to gather 5 different, non-overlapping tracks.
-		for track5x10sIdx := 0; track5x10sIdx < 5; track5x10sIdx++ {
-			track5x10s := Track{}
-			track5x10s = track5x10s.addPointMinDurationUnused10s(ps[0], 10, true)
-			for i := 1; i < len(ps); i++ {
-				track5x10s = track5x10s.addPointMinDurationUnused10s(ps[i], 10, true)
-				if track5x10s.valid && res.speed5x10s[track5x10sIdx].speed < track5x10s.speed {
-					res.speed5x10s[track5x10sIdx] = track5x10s
+		switch statType {
+		case StatAll, Stat10sAvg, Stat10s1, Stat10s2, Stat10s3, Stat10s4, Stat10s5:
+			// 5 x 10 secs need to gather 5 different, non-overlapping tracks.
+			for track5x10sIdx := 0; track5x10sIdx < 5; track5x10sIdx++ {
+				track5x10s := Track{}
+				track5x10s = track5x10s.addPointMinDurationUnused10s(ps[0], 10, true)
+				for i := 1; i < len(ps); i++ {
+					track5x10s = track5x10s.addPointMinDurationUnused10s(ps[i], 10, true)
+					if track5x10s.valid && res.speed5x10s[track5x10sIdx].speed < track5x10s.speed {
+						res.speed5x10s[track5x10sIdx] = track5x10s
+					}
+				}
+
+				track5x10s = res.speed5x10s[track5x10sIdx]
+				for i := 0; i < len(track5x10s.ps); i++ {
+					ps[track5x10s.ps[i].globalIdx].usedFor10s = true
 				}
 			}
-
-			track5x10s = res.speed5x10s[track5x10sIdx]
-			for i := 0; i < len(track5x10s.ps); i++ {
-				ps[track5x10s.ps[i].globalIdx].usedFor10s = true
-			}
 		}
+
 	}
 
 	return res
