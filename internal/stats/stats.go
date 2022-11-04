@@ -14,12 +14,16 @@ const (
 	// Earth radius from Wikipedia
 	// SI base unit	   6.3781×106 m[1]
 	// Metric system	   6,357 to 6,378 km
-	earthRadius  = 6370000 // Earth Radius in meters
-	mPerSecToKts = 1.94384 // Number of KTS in 1 m/s
+	earthRadius      = 6370000  // Earth Radius in meters
+	mPerSecToKts     = 1.94384  // Number of KTS in 1 m/s
+	earthCircPoles   = 40007863 // Earth Circumference around poles
+	earthCircEquator = 40075017 // Earth Circumference around equator
 )
 
+// StatFlag shows which statistics are we calculating/printing.
 type StatFlag int64
 
+// StatFlag shows which statistics are we calculating/printing.
 const (
 	StatNone StatFlag = iota
 	StatAll
@@ -451,8 +455,9 @@ func dist(lat1, lon1, lat2, lon2 float64) float64 {
 // distSimple calculate a distance between two points by their lattitudes and
 // longitudes, ignoring curvature of the earth surface (small distances).
 func distSimple(lat1, lon1, lat2, lon2 float64) float64 {
-	dLatM := (lat2 - lat1) / 360 * 40007863
-	dLonM := (lon2 - lon1) / 360 * 40075017 * math.Cos((lat1+lat2)/2*math.Pi/180)
+	dLatM := (lat2 - lat1) / 360 * earthCircPoles
+	dLonM := (lon2 - lon1) / 360 * earthCircEquator * math.Cos((lat1+lat2)/2*math.Pi/180)
+
 	return math.Sqrt(sq(dLatM) + sq(dLonM))
 }
 
