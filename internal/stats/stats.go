@@ -18,6 +18,23 @@ const (
 	mPerSecToKts = 1.94384 // Number of KTS in 1 m/s
 )
 
+type StatFlag int64
+
+const (
+	Stat2s StatFlag = iota
+	Stat10sAvg
+	Stat10s1
+	Stat10s2
+	Stat10s3
+	Stat10s4
+	Stat10s5
+	Stat15m
+	Stat1h
+	Stat100m
+	Stat1nm
+	StatAlpha
+)
+
 // Point represent one GPS point with timestamp.
 type Point struct {
 	isPoint    bool
@@ -52,7 +69,7 @@ func (t Track) TxtLine() string {
 	if len(t.ps) > 0 {
 		timestamp = t.ps[0].ts
 	}
-	return fmt.Sprintf("%0.3f kts (%0.0f sec, %0.3f m, %v)",
+	return fmt.Sprintf("%06.3f kts (%0.0f sec, %06.3f m, %v)",
 		t.speed, t.duration, t.distance, timestamp)
 }
 func (t Track) String() string {
@@ -214,12 +231,43 @@ type Stats struct {
 	alpha500m     Track
 }
 
+// TxtSingleStat returns a single statistic.
+func (s Stats) TxtSingleStat(statType StatFlag) string {
+	switch statType {
+	case Stat2s:
+		return fmt.Sprintf("%06.3f", s.speed2s.speed)
+	case Stat10sAvg:
+		return fmt.Sprintf("%06.3f", s.Calc5x10sAvg())
+	case Stat10s1:
+		return fmt.Sprintf("%06.3f", s.speed5x10s[0].speed)
+	case Stat10s2:
+		return fmt.Sprintf("%06.3f", s.speed5x10s[1].speed)
+	case Stat10s3:
+		return fmt.Sprintf("%06.3f", s.speed5x10s[2].speed)
+	case Stat10s4:
+		return fmt.Sprintf("%06.3f", s.speed5x10s[3].speed)
+	case Stat10s5:
+		return fmt.Sprintf("%06.3f", s.speed5x10s[4].speed)
+	case Stat15m:
+		return fmt.Sprintf("%06.3f", s.speed15m.speed)
+	case Stat1h:
+		return fmt.Sprintf("%06.3f", s.speed1h.speed)
+	case Stat100m:
+		return fmt.Sprintf("%06.3f", s.speed100m.speed)
+	case Stat1nm:
+		return fmt.Sprintf("%06.3f", s.speed1NM.speed)
+	case StatAlpha:
+		return fmt.Sprintf("%06.3f", s.alpha500m.speed)
+	}
+	return ""
+}
+
 // TxtStats formats statistics as a human-readable text.
 func (s Stats) TxtStats() string {
 	return fmt.Sprintf(
-		`Total Distance:     %0.3f km
+		`Total Distance:     %06.3f km
 2 Second Peak:      %s
-5x10 Average:       %0.3f kts
+5x10 Average:       %06.3f kts
   Top 1 5x10 speed: %s
   Top 2 5x10 speed: %s
   Top 3 5x10 speed: %s

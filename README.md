@@ -3,6 +3,8 @@
 `gps-stats` is a command-line tool that can read and analyze GPS data in a
 `SBN` format.
 
+Multiple files can be analyzed at once.
+
 Results are the following stats:
 - Total Distance
 - 2 Second Peak
@@ -16,7 +18,7 @@ Results are the following stats:
 
 ## Example usage
 
-Here is the example run of the gps-stats app:
+Here are few example runs of the gps-stats app:
 ```
 $ gps-stats ../gps-data/VVidovic_113200915_20221014_140124.SBN
 Found 9341 track points in 'VVidovic_113200915_20221014_140124.SBN', after cleanup 9110 points left.
@@ -33,6 +35,16 @@ Total Distance:     48.589 km
 100m peak:          16.984 kts (12 sec, 104.850 m, 2022-10-14 14:40:34 +0000 UTC)
 Nautical Mile:      13.801 kts (261 sec, 1853.104 m, 2022-10-14 14:35:47 +0000 UTC)
 Alpha 500:          14.378 kts (29 sec, 214.498 m, 2022-10-14 14:48:26 +0000 UTC)
+
+$ go run gps-stats.go -t=alpha ../gps-data/VVidovic_113200915_20221014_140124.SBN
+14.381 (VVidovic_113200915_20221014_140124.SBN)
+
+$ go run gps-stats.go -t=alpha ../gps-data/*.SBN | sort
+...
+14.509 (VVidovic_113200915_20220912_125830.SBN)
+14.572 (VVidovic_113200915_20220905_111830.SBN)
+14.772 (VVidovic_113200915_20220806_112219.SBN)
+15.638 (VVidovic_113200915_20220902_151000.SBN)
 ```
 
 ## Build
