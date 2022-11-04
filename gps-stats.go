@@ -24,34 +24,41 @@ func main() {
 
 	if *versionFlag {
 		showVersion()
-	} else if *helpFlag || len(flag.Args()) != 1 {
+	} else if *helpFlag || len(flag.Args()) < 1 {
 		showUsage(0)
 	} else {
-		f, err := os.Open(flag.Args()[0])
-		if err != nil {
-			return
+		for i := 0; i < len(flag.Args()); i++ {
+			printStatsForFile(flag.Args()[i])
 		}
-
-		r := bufio.NewReader(f)
-
-		ps, err := stats.ReadPoints(r)
-
-		if err != nil {
-			fmt.Printf("Error reading points: %v\n", err)
-			return
-		}
-
-		pointsNo := len(ps)
-		ps = stats.CleanUp(ps)
-		pointsCleanedNo := len(ps)
-
-		fmt.Printf("Found %d track points in '%s', after cleanup %d points left.\n",
-			pointsNo, filepath.Base(f.Name()), pointsCleanedNo)
-
-		s := stats.CalculateStats(ps)
-		fmt.Print(s.TxtStats())
-		fmt.Println("")
 	}
+}
+
+func printStatsForFile(filePath string) {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return
+	}
+
+	r := bufio.NewReader(f)
+
+	ps, err := stats.ReadPoints(r)
+
+	if err != nil {
+		fmt.Printf("Error reading points: %v\n", err)
+		return
+	}
+
+	pointsNo := len(ps)
+	ps = stats.CleanUp(ps)
+	pointsCleanedNo := len(ps)
+
+	s := stats.CalculateStats(ps)
+
+	fileName := filepath.Base(f.Name())
+	fmt.Printf("Found %d track points in '%s', after cleanup %d points left.\n",
+		pointsNo, fileName, pointsCleanedNo)
+	fmt.Print(s.TxtStats())
+	fmt.Println("")
 
 }
 
@@ -64,7 +71,7 @@ func showVersion() {
 // usage prints usage help information with examples to console.
 func showUsage(exitStatus int) {
 	fmt.Println("Usage:")
-	fmt.Printf(" %s GPS_data_file\n", os.Args[0])
+	fmt.Printf(" %s GPS_data_file1 [GPS_data_file2 ...]\n", os.Args[0])
 	fmt.Println("")
 	fmt.Println("")
 	fmt.Println("Example:")
