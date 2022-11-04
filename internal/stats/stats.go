@@ -379,17 +379,31 @@ func speed(p1, p2 Point) float64 {
 
 // distance calculates a distance between two Points.
 func distance(p1, p2 Point) float64 {
-	return dist(p1.lat, p1.lon, p2.lat, p2.lon)
+	return distSimple(p1.lat, p1.lon, p2.lat, p2.lon)
+}
+
+// sq calculate square of a float64 number.
+func sq(n float64) float64 {
+	return n * n
 }
 
 // dist calculate a distance between two points by their lattitudes and
 // longitudes.
 func dist(lat1, lon1, lat2, lon2 float64) float64 {
-	dLat := lat2*math.Pi/180 - lat1*math.Pi/180
-	dLon := lon2*math.Pi/180 - lon1*math.Pi/180
-	a := math.Sin(dLat/2)*math.Sin(dLat/2) + math.Cos(lat1*math.Pi/180)*math.Cos(lat2*math.Pi/180)*math.Sin(dLon/2)*math.Sin(dLon/2)
+	dLat := (lat2 - lat1) * math.Pi / 180
+	dLon := (lon2 - lon1) * math.Pi / 180
+	a := sq(math.Sin(dLat/2)) +
+		math.Cos(lat1*math.Pi/180)*math.Cos(lat2*math.Pi/180)*sq(math.Sin(dLon/2))
 	c := 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
 	return earthRadius * c
+}
+
+// distSimple calculate a distance between two points by their lattitudes and
+// longitudes, ignoring curvature of the earth surface (small distances).
+func distSimple(lat1, lon1, lat2, lon2 float64) float64 {
+	dLatM := (lat2 - lat1) / 360 * 40007863
+	dLonM := (lon2 - lon1) / 360 * 40075017 * math.Cos((lat1+lat2)/2*math.Pi/180)
+	return math.Sqrt(sq(dLatM) + sq(dLonM))
 }
 
 // CleanUp removes points that seems not valid.
