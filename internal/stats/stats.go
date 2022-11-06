@@ -173,14 +173,25 @@ func (t Track) addPointMinDistance(p Point, minDistance float64) Track {
 	return t
 }
 
+// addPointAlpha500
+// - add a new Point to the end of the Track for Alpha 500 m calculation
+// - ensures the Track is as close but no longer than 500 m
+// - try to find the subtrack that contains alpha for entry/exit gate max 50 m
+// - return two Tracks: "this" Track and subtrack containing best alpha
+//   (as described above)
+func (t Track) addPointAlpha500(p Point) (Track, Track) {
+	return t.addPointAlphaMaxDistance(p, 500, 100, 50)
+}
+
 // addPointAlphaMaxDistance
-// - add a new Point to the end of the Track
+// - add a new Point to the end of the Track for Alpha calculation
 // - ensures the Track is as close but no longer than maxDistance (removing
 //   Points from the beginning of the Track if possible)
 // - try to find the subtrack that is no shorter than minDistance (to ensure
 //   this is alpha and no riding straight) and that the first and the last point
 //   are ate most gateSize away
-// - return two Tracks: "this" Track and subtrack (as described above)
+// - return two Tracks: "this" Track and subtrack containing best alpha
+//   (as described above)
 func (t Track) addPointAlphaMaxDistance(p Point,
 	maxDistance, minDistance, gateSize float64) (Track, Track) {
 	t.ps = append(t.ps, p)
@@ -214,7 +225,7 @@ func (t Track) addPointAlphaMaxDistance(p Point,
 			if subtrackDistance < minDistance {
 				break
 			}
-			if gateDistance <= gateSize {
+			if gateDistance <= gateSize && subtrackDistance >= minDistance {
 				subtrack := Track{ps: t.ps[i:], valid: true}.reCalculate()
 				return t, subtrack
 			}
@@ -241,29 +252,29 @@ type Stats struct {
 func (s Stats) TxtSingleStat(statType StatFlag) string {
 	switch statType {
 	case Stat2s:
-		return fmt.Sprintf("%06.3f", s.speed2s.speed)
+		return s.speed2s.TxtLine()
 	case Stat10sAvg:
 		return fmt.Sprintf("%06.3f", s.Calc5x10sAvg())
 	case Stat10s1:
-		return fmt.Sprintf("%06.3f", s.speed5x10s[0].speed)
+		return s.speed5x10s[0].TxtLine()
 	case Stat10s2:
-		return fmt.Sprintf("%06.3f", s.speed5x10s[1].speed)
+		return s.speed5x10s[1].TxtLine()
 	case Stat10s3:
-		return fmt.Sprintf("%06.3f", s.speed5x10s[2].speed)
+		return s.speed5x10s[2].TxtLine()
 	case Stat10s4:
-		return fmt.Sprintf("%06.3f", s.speed5x10s[3].speed)
+		return s.speed5x10s[3].TxtLine()
 	case Stat10s5:
-		return fmt.Sprintf("%06.3f", s.speed5x10s[4].speed)
+		return s.speed5x10s[4].TxtLine()
 	case Stat15m:
-		return fmt.Sprintf("%06.3f", s.speed15m.speed)
+		return s.speed15m.TxtLine()
 	case Stat1h:
-		return fmt.Sprintf("%06.3f", s.speed1h.speed)
+		return s.speed1h.TxtLine()
 	case Stat100m:
-		return fmt.Sprintf("%06.3f", s.speed100m.speed)
+		return s.speed100m.TxtLine()
 	case Stat1nm:
-		return fmt.Sprintf("%06.3f", s.speed1NM.speed)
+		return s.speed1NM.TxtLine()
 	case StatAlpha:
-		return fmt.Sprintf("%06.3f", s.alpha500m.speed)
+		return s.alpha500m.TxtLine()
 	}
 	return ""
 }
@@ -508,7 +519,7 @@ func CalculateStats(ps []Point, statType StatFlag) Stats {
 			track100m = track100m.addPointMinDistance(ps[0], 100)
 			track1NM = track1NM.addPointMinDistance(ps[0], 1852)
 			trackAlpha500m, subtrackAlpha500m =
-				trackAlpha500m.addPointAlphaMaxDistance(ps[0], 500, 100, 50)
+				trackAlpha500m.addPointAlpha500(ps[0])
 		case Stat2s:
 			track2s = track2s.addPointMinDuration(ps[0], 2)
 		case Stat15m:
@@ -521,7 +532,7 @@ func CalculateStats(ps []Point, statType StatFlag) Stats {
 			track1NM = track1NM.addPointMinDistance(ps[0], 1852)
 		case StatAlpha:
 			trackAlpha500m, subtrackAlpha500m =
-				trackAlpha500m.addPointAlphaMaxDistance(ps[0], 500, 100, 50)
+				trackAlpha500m.addPointAlpha500(ps[0])
 		}
 		for i := 1; i < len(ps); i++ {
 			res.totalDistance = res.totalDistance + distance(ps[i-1], ps[i])
@@ -533,7 +544,7 @@ func CalculateStats(ps []Point, statType StatFlag) Stats {
 				track100m = track100m.addPointMinDistance(ps[i], 100)
 				track1NM = track1NM.addPointMinDistance(ps[i], 1852)
 				trackAlpha500m, subtrackAlpha500m =
-					trackAlpha500m.addPointAlphaMaxDistance(ps[i], 500, 100, 50)
+					trackAlpha500m.addPointAlpha500(ps[i])
 			case Stat2s:
 				track2s = track2s.addPointMinDuration(ps[i], 2)
 			case Stat15m:
@@ -546,7 +557,7 @@ func CalculateStats(ps []Point, statType StatFlag) Stats {
 				track1NM = track1NM.addPointMinDistance(ps[i], 1852)
 			case StatAlpha:
 				trackAlpha500m, subtrackAlpha500m =
-					trackAlpha500m.addPointAlphaMaxDistance(ps[i], 500, 100, 50)
+					trackAlpha500m.addPointAlpha500(ps[i])
 			}
 			// If any of calculated statistics is prepared (valid) and the statistic
 			//   is a highest one, save it.
