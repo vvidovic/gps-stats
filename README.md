@@ -1,7 +1,7 @@
 # gps-stats
 
 `gps-stats` is a command-line tool that can read and analyze GPS data in a
-`SBN` format.
+`SBN` or `GPX` format.
 
 Multiple files can be analyzed at once.
 

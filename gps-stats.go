@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -77,12 +78,17 @@ func printStatsForFile(filePath string, statType stats.StatFlag) {
 		return
 	}
 
+	fileName := filepath.Base(f.Name())
+
 	r := bufio.NewReader(f)
 
 	ps, err := stats.ReadPoints(r)
 
-	if err != nil {
-		fmt.Printf("Error reading points: %v\n", err)
+	if err != nil && err != io.EOF {
+		fmt.Printf("Error reading track points from '%s': %v\n", fileName, err)
+		if statType == stats.StatAll {
+			fmt.Println("")
+		}
 		return
 	}
 
@@ -91,8 +97,6 @@ func printStatsForFile(filePath string, statType stats.StatFlag) {
 	pointsCleanedNo := len(ps)
 
 	s := stats.CalculateStats(ps, statType)
-
-	fileName := filepath.Base(f.Name())
 
 	switch statType {
 	case stats.StatAll:
@@ -116,6 +120,8 @@ func showUsage(exitStatus int) {
 	fmt.Println("Usage:")
 	fmt.Printf(" %s GPS_data_file1 [GPS_data_file2 ...]\n", os.Args[0])
 	fmt.Println("")
+	fmt.Println("Parses 1 or more GPS data files (SBN or GPX)")
+	fmt.Println("")
 	fmt.Println("Flags:")
 	fmt.Println("  -h Show usage (optional)")
 	fmt.Println("  -v Show version (optional)")
@@ -126,8 +132,8 @@ func showUsage(exitStatus int) {
 	fmt.Printf(" %s my_gps_data.SBN\n", os.Args[0])
 	fmt.Println("   - runs analysis of the SBN data")
 	fmt.Println("")
-	fmt.Printf(" %s -t=1nm *.SBN\n", os.Args[0])
-	fmt.Println("   - runs analysis of multiple SBN data only for 1 NM statistics")
+	fmt.Printf(" %s -t=1nm *.SBN *.gpx\n", os.Args[0])
+	fmt.Println("   - runs analysis of multiple SBN & GPX data only for 1 NM statistics")
 
 	os.Exit(exitStatus)
 }
