@@ -249,6 +249,7 @@ func (t Track) addPointAlphaMaxDistance(p Point,
 // Stats constains calculated statistics.
 type Stats struct {
 	totalDistance float64
+	totalDuration float64
 	speed2s       Track
 	speed5x10s    []Track
 	speed15m      Track
@@ -293,6 +294,7 @@ func (s Stats) TxtSingleStat(statType StatFlag) string {
 func (s Stats) TxtStats() string {
 	return fmt.Sprintf(
 		`Total Distance:     %06.3f km
+Total Duration:     %06.3f h
 2 Second Peak:      %s
 5x10 Average:       %06.3f kts
   Top 1 5x10 speed: %s
@@ -307,6 +309,7 @@ Nautical Mile:      %s
 Alpha 500:          %s
 `,
 		s.totalDistance/1000,
+		s.totalDuration,
 		s.speed2s.TxtLine(),
 		s.Calc5x10sAvg(),
 		s.speed5x10s[0].TxtLine(), s.speed5x10s[1].TxtLine(),
@@ -362,7 +365,7 @@ func ReadPoints(r io.Reader) ([]Point, error) {
 	}
 }
 
-func determineType(r io.Reader) (TrackType) {
+func determineType(r io.Reader) TrackType {
 	br := bufio.NewReaderSize(r, 100)
 	startBytes, _ := br.Peek(100)
 
@@ -373,13 +376,12 @@ func determineType(r io.Reader) (TrackType) {
 		}
 		// 60 63 120 109 108 32 118 101 114 115 105
 		if bytes.Equal(startBytes[0:6], []byte("<?xml ")) {
-				return TrackGpx
+			return TrackGpx
 		}
 	}
 
 	return TrackUnknown
 }
-
 
 // speed calculate speed as a result of moving between two Points.
 func speed(p1, p2 Point) float64 {
@@ -529,6 +531,8 @@ func CalculateStats(ps []Point, statType StatFlag) Stats {
 				res.alpha500m = subtrackAlpha500m
 			}
 		}
+
+		res.totalDuration = ps[len(ps)-1].ts.Sub(ps[0].ts).Hours()
 
 		switch statType {
 		case StatAll, Stat10sAvg, Stat10s1, Stat10s2, Stat10s3, Stat10s4, Stat10s5:
