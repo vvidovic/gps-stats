@@ -2,41 +2,45 @@ package stats
 
 import (
 	"encoding/xml"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"time"
+
+	"github.com/vvidovic/gps-stats/internal/version"
 )
 
 // Gpx contains all tracks from a GPX file.
 type Gpx struct {
 	XMLName xml.Name `xml:"gpx"`
-	Trks   []Trk   `xml:"trk"`
+	Creator string   `xml:"creator,attr"`
+	Trks    []Trk    `xml:"trk"`
 }
 
 // Trk contains a single track from a GPX file
 // with multiple segments.
 type Trk struct {
 	XMLName xml.Name `xml:"trk"`
-	Trksegs   []Trkseg   `xml:"trkseg"`
+	Trksegs []Trkseg `xml:"trkseg"`
 }
 
 // Trkseg contains a single track segment from a GPX file
 // track with multiple points.
 type Trkseg struct {
 	XMLName xml.Name `xml:"trkseg"`
-	Trkpts   []Trkpt   `xml:"trkpt"`
+	Trkpts  []Trkpt  `xml:"trkpt"`
 }
 
 // Trkseg contains a single track segment from a GPX file
 // track segment with multiple points.
 type Trkpt struct {
-	XMLName xml.Name `xml:"trkpt"`
-	Lat    float64   `xml:"lat,attr"`
-	Lon    float64   `xml:"lon,attr"`
-	Time   time.Time    `xml:"time"`
+	XMLName xml.Name  `xml:"trkpt"`
+	Lat     float64   `xml:"lat,attr"`
+	Lon     float64   `xml:"lon,attr"`
+	Time    time.Time `xml:"time"`
 }
 
-// ReadPointsGpx reads all available SBN Points from the Reader.
+// ReadPointsGpx reads all available GPX Points from the Reader.
 func ReadPointsGpx(r io.Reader) ([]Point, error) {
 	res := []Point{}
 
@@ -76,4 +80,32 @@ func ReadPointsGpx(r io.Reader) ([]Point, error) {
 // to internal Point structure.
 func readPointGpx(trkpt Trkpt) (Point, error) {
 	return Point{isPoint: true, lat: trkpt.Lat, lon: trkpt.Lon, ts: trkpt.Time}, nil
+}
+
+// SavePointsAsGpx save points as GPX file.
+func SavePointsAsGpx(ps []Point, w io.Writer) error {
+	gpx := Gpx{
+		Creator: fmt.Sprintf("gps-stat version %s %s %s", version.Version, version.Platform, version.BuildTime),
+		Trks: []Trk{
+			{Trksegs: []Trkseg{
+				{Trkpts: []Trkpt{}}}}}}
+	trkpts := gpx.Trks[0].Trksegs[0].Trkpts
+
+	for pIdx := 0; pIdx < len(ps); pIdx++ {
+		p := ps[pIdx]
+		trkpt := Trkpt{
+			Lat:  p.lat,
+			Lon:  p.lon,
+			Time: p.ts}
+		trkpts = append(trkpts, trkpt)
+	}
+
+	gpx.Trks[0].Trksegs[0].Trkpts = trkpts
+
+	byteVal, err := xml.MarshalIndent(gpx, "", "  ")
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(byteVal)
+	return err
 }

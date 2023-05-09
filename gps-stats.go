@@ -13,9 +13,10 @@ import (
 )
 
 var (
-	helpFlag     *bool
-	versionFlag  *bool
-	statTypeFlag *string
+	helpFlag            *bool
+	versionFlag         *bool
+	statTypeFlag        *string
+	saveFilteredGpxFlag *bool
 )
 
 func main() {
@@ -23,6 +24,7 @@ func main() {
 	versionFlag = flag.Bool("v", false, "Show gps-stats version")
 	statTypeFlag = flag.String("t", "all",
 		"Set the statistics type to print (all, 2s, 10sAvg, 10s1, 10s2, 10s3, 10s4, 10s5, 15m, 1h, 100m, 1nm, alpha)")
+	saveFilteredGpxFlag = flag.Bool("sf", false, "Save filtered track to a new GPX file")
 
 	flag.Parse()
 
@@ -96,6 +98,32 @@ func printStatsForFile(filePath string, statType stats.StatFlag) {
 	ps = stats.CleanUp(ps)
 	pointsCleanedNo := len(ps)
 
+	if *saveFilteredGpxFlag {
+		newFilePath := filePath + ".filtered.gpx"
+		f, err := os.Create(newFilePath)
+		if err != nil {
+			fmt.Printf("Error creating new file '%s' for GPX export: %v\n", newFilePath, err)
+			if statType == stats.StatAll {
+				fmt.Println("")
+			}
+			return
+		}
+
+		err = stats.SavePointsAsGpx(ps, f)
+		if err != nil {
+			fmt.Printf("Error saving file '%s' for GPX export: %v\n", newFilePath, err)
+			if statType == stats.StatAll {
+				fmt.Println("")
+			}
+			return
+		}
+
+		fmt.Printf("Filtered GPX file '%s' saved.\n", newFilePath)
+		if statType == stats.StatAll {
+			fmt.Println("")
+		}
+	}
+
 	s := stats.CalculateStats(ps, statType)
 
 	switch statType {
@@ -126,7 +154,9 @@ func showUsage(exitStatus int) {
 	fmt.Println("  -h Show usage (optional)")
 	fmt.Println("  -v Show version (optional)")
 	fmt.Println("  -t Set the statistics type to print (optional)")
-	fmt.Println("    (all, 2s, 10sAvg, 10s1, 10s2, 10s3, 10s4, 10s5, 15m, 1h, 100m, 1nm, alpha)")
+	fmt.Println("     (all, 2s, 10sAvg, 10s1, 10s2, 10s3, 10s4, 10s5, 15m, 1h, 100m, 1nm, alpha)")
+	fmt.Println("  -sf Save filtered points as a new GPX file without points detected as errors")
+	fmt.Println("      with suffix '.filtered.gpx' (optional)")
 	fmt.Println("")
 	fmt.Println("Examples:")
 	fmt.Printf(" %s my_gps_data.SBN\n", os.Args[0])
@@ -134,6 +164,9 @@ func showUsage(exitStatus int) {
 	fmt.Println("")
 	fmt.Printf(" %s -t=1nm *.SBN *.gpx\n", os.Args[0])
 	fmt.Println("   - runs analysis of multiple SBN & GPX data only for 1 NM statistics")
+	fmt.Println("")
+	fmt.Printf(" %s my_gps_data.GPX -sf\n", os.Args[0])
+	fmt.Println("   - runs analysis of the GPX data and save a copy of track with filtered points detected as errors")
 
 	os.Exit(exitStatus)
 }
