@@ -14,6 +14,7 @@ import (
 type Gpx struct {
 	XMLName xml.Name `xml:"gpx"`
 	Creator string   `xml:"creator,attr"`
+	XMLNS   string   `xml:"xmlns,attr"`
 	Trks    []Trk    `xml:"trk"`
 }
 
@@ -85,6 +86,7 @@ func readPointGpx(trkpt Trkpt) (Point, error) {
 // SavePointsAsGpx save points as GPX file.
 func SavePointsAsGpx(ps []Point, w io.Writer) error {
 	gpx := Gpx{
+		XMLNS:   "http://www.topografix.com/GPX/1/1",
 		Creator: fmt.Sprintf("gps-stat version %s %s %s", version.Version, version.Platform, version.BuildTime),
 		Trks: []Trk{
 			{Trksegs: []Trkseg{
@@ -103,6 +105,11 @@ func SavePointsAsGpx(ps []Point, w io.Writer) error {
 	gpx.Trks[0].Trksegs[0].Trkpts = trkpts
 
 	byteVal, err := xml.MarshalIndent(gpx, "", "  ")
+	if err != nil {
+		return err
+	}
+	xmlHeader := `<?xml version="1.0" encoding="UTF-8"?>` + "\n"
+	_, err = w.Write([]byte(xmlHeader))
 	if err != nil {
 		return err
 	}
