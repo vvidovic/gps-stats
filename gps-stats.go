@@ -13,10 +13,12 @@ import (
 )
 
 var (
-	helpFlag            *bool
-	versionFlag         *bool
-	statTypeFlag        *string
-	saveFilteredGpxFlag *bool
+	helpFlag                   *bool
+	versionFlag                *bool
+	statTypeFlag               *string
+	cleanupDeltaPercentageFlag *int
+	cleanupDeltaKnotsFlag      *float64
+	saveFilteredGpxFlag        *bool
 )
 
 func main() {
@@ -24,6 +26,10 @@ func main() {
 	versionFlag = flag.Bool("v", false, "Show gps-stats version")
 	statTypeFlag = flag.String("t", "all",
 		"Set the statistics type to print (all, 2s, 10sAvg, 10s1, 10s2, 10s3, 10s4, 10s5, 15m, 1h, 100m, 1nm, alpha)")
+	cleanupDeltaPercentageFlag = flag.Int("csp", 50,
+		"Clean up points where difference in speed is more than given percentage (default 50 %)")
+	cleanupDeltaKnotsFlag = flag.Float64("csk", 3,
+		"Clean up points where difference in speed is more than given number of knots (default 3 kts)")
 	saveFilteredGpxFlag = flag.Bool("sf", false, "Save filtered track to a new GPX file")
 
 	flag.Parse()
@@ -95,7 +101,7 @@ func printStatsForFile(filePath string, statType stats.StatFlag) {
 	}
 
 	pointsNo := len(ps)
-	ps = stats.CleanUp(ps)
+	ps = stats.CleanUp(ps, *cleanupDeltaPercentageFlag, *cleanupDeltaKnotsFlag)
 	pointsCleanedNo := len(ps)
 
 	if *saveFilteredGpxFlag {
@@ -158,14 +164,20 @@ func showUsage(exitStatus int) {
 	fmt.Println("  -sf Save filtered points as a new GPX file without points detected as errors")
 	fmt.Println("      with suffix '.filtered.gpx' (optional)")
 	fmt.Println("")
+	fmt.Println("  -csp Clean up points where difference in speed is more than given percentage (default 50 %)")
+	fmt.Println("  -csk Clean up points where difference in speed is more than given number of knots (default 3 kts)")
+	fmt.Println("")
 	fmt.Println("Examples:")
 	fmt.Printf(" %s my_gps_data.SBN\n", os.Args[0])
 	fmt.Println("   - runs analysis of the SBN data")
 	fmt.Println("")
+	fmt.Printf(" %s -csp 70 -csk 7 my_gps_data.gpx\n", os.Args[0])
+	fmt.Println("   - runs analysis of the SBN data with custom clean up settings")
+	fmt.Println("")
 	fmt.Printf(" %s -t=1nm *.SBN *.gpx\n", os.Args[0])
 	fmt.Println("   - runs analysis of multiple SBN & GPX data only for 1 NM statistics")
 	fmt.Println("")
-	fmt.Printf(" %s my_gps_data.GPX -sf\n", os.Args[0])
+	fmt.Printf(" %s -sf my_gps_data.GPX\n", os.Args[0])
 	fmt.Println("   - runs analysis of the GPX data and save a copy of track with filtered points detected as errors")
 
 	os.Exit(exitStatus)

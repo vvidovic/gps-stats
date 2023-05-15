@@ -424,9 +424,12 @@ func distSimple(lat1, lon1, lat2, lon2 float64) float64 {
 }
 
 // CleanUp removes points that seems not valid.
-func CleanUp(ps []Point) []Point {
+func CleanUp(ps []Point, cleanupDeltaPercentageFlag int, cleanupDeltaKnotsFlag float64) []Point {
 	res := []Point{}
 	if len(ps) > 1 {
+		deltaPercMax := float64(1.0) + float64(cleanupDeltaPercentageFlag)/100.0
+		deltaKtsMax := cleanupDeltaKnotsFlag
+		fmt.Printf("dpm: %v, dkm: %v\n", deltaPercMax, deltaKtsMax)
 		res = append(res, ps[0], ps[1])
 		speedPrev := speed(ps[0], ps[1])
 		idxRes := 1
@@ -436,7 +439,7 @@ func CleanUp(ps []Point) []Point {
 			speedDeltaKts := math.Abs(speedCur - speedPrev)
 			// Ignore points where the speed is above 3 kts and the speed difference
 			//   from the last two points increased or decreased more than 50%.
-			if speedDeltaPerc <= 1.5 || speedDeltaKts < 3 {
+			if speedDeltaPerc <= deltaPercMax || speedDeltaKts < deltaKtsMax {
 				speedPrev = speedCur
 				res = append(res, ps[idxPs])
 				idxRes++
