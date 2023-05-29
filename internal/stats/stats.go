@@ -430,44 +430,52 @@ func distSimple(lat1, lon1, lat2, lon2 float64) float64 {
 }
 
 // CleanUp removes points that seems not valid.
-func CleanUp(ps []Point, cleanupDeltaPercentageFlag int, cleanupDeltaKnotsFlag float64) []Point {
+func CleanUp(psIn []Point, cleanupDeltaPercentageFlag int, cleanupDeltaKnotsFlag float64) []Point {
 	res := []Point{}
-	if len(ps) > 1 {
-		// Cleanup times first - if points are saved each 1 second, move points with
-		//   to ensure there is a point for each second.
-		// Proper GPS track should have data for each second.
-		pPrev := &ps[0]
-		for idxPs := 1; idxPs < len(ps)-1; idxPs++ {
-			pCurr := &ps[idxPs]
-			pNext := &ps[idxPs+1]
+	if len(psIn) > 1 {
+		// Cleanup times first - if points have same timestamp, remove both points.
+		// - this approach gave best results for GPX export from Amazfit T-Rex Pro
+		psCleanTimes := []Point{}
+		psCleanTimes = append(psCleanTimes, psIn[0])
+		psLen := len(psIn)
+		for idxPs := 1; idxPs < psLen; idxPs++ {
+			pCurr := psIn[idxPs]
 
-			if pCurr.ts.Sub(pPrev.ts) == time.Second*1 && pNext.ts.Sub(pCurr.ts) == time.Second*2 {
-				pNext.ts = pNext.ts.Add(time.Second * -1)
+			if idxPs < psLen-1 {
+				pNext := psIn[idxPs+1]
+				if pCurr.ts != pNext.ts {
+					psCleanTimes = append(psCleanTimes, pCurr)
+					pCurr = pNext
+				} else {
+					// Skip both points
+					idxPs++
+				}
+			} else {
+				psCleanTimes = append(psCleanTimes, pCurr)
 			}
-			if pCurr.ts.Sub(pPrev.ts) == time.Second*0 && pNext.ts.Sub(pCurr.ts) == time.Second*1 {
-				pCurr.ts = pCurr.ts.Add(time.Second * 1)
-			}
-			pPrev = pCurr
 		}
 
-		// Cleanup speeds - remove outlier points.
+		// Cleanup speeds - remove outlier points (fast stops are permitted - crashes).
 		deltaPercMax := float64(1.0) + float64(cleanupDeltaPercentageFlag)/100.0
-		deltaPercMin := float64(1.0) - float64(cleanupDeltaPercentageFlag)/100.0
 		deltaKtsMax := cleanupDeltaKnotsFlag
-		res = append(res, ps[0], ps[1])
-		speedPrev := speed(ps[0], ps[1])
+		res = append(res, psCleanTimes[0], psCleanTimes[1])
+		speedPrev := speed(psCleanTimes[0], psCleanTimes[1])
 		idxRes := 1
-		for idxPs := 2; idxPs < len(ps); idxPs++ {
-			speedCur := speed(res[idxRes], ps[idxPs])
+		for idxPs := 2; idxPs < len(psCleanTimes); idxPs++ {
+			speedCur := speed(res[idxRes], psCleanTimes[idxPs])
 			speedDeltaPerc := math.Abs(speedCur / speedPrev)
-			speedDeltaKts := math.Abs(speedCur - speedPrev)
-			// Ignore points where the speed is above 3 kts and the speed difference
-			//   from the last two points increased or decreased more than 50%.
-			if (speedDeltaPerc <= deltaPercMax && speedDeltaPerc >= deltaPercMin) || speedDeltaKts < deltaKtsMax {
+			speedDeltaKts := speedCur - speedPrev
+			speedDeltaKtsAbs := math.Abs(speedDeltaKts)
+			// Ignore points where the speed difference between last two points
+			//   increases more than given params.
+			if speedDeltaPerc <= deltaPercMax || (speedDeltaKtsAbs < deltaKtsMax || speedDeltaKts < 0) {
+				// fmt.Printf("OK  idxPs: %v, idxRes: %v, speedCur: %v, dp: %v, dk: %v (%v)\n", idxPs, idxRes, speedCur, speedDeltaPerc, speedDeltaKts, psCleanTimes[idxPs].ts)
 				speedPrev = speedCur
-				res = append(res, ps[idxPs])
+				res = append(res, psCleanTimes[idxPs])
 				idxRes++
 				res[idxRes].globalIdx = idxRes
+			} else {
+				// fmt.Printf("NOK idxPs: %v, idxRes: %v, speedCur: %v, dp: %v, dk: %v (%v)\n", idxPs, idxRes, speedCur, speedDeltaPerc, speedDeltaKts, psCleanTimes[idxPs].ts)
 			}
 		}
 	}

@@ -28,8 +28,8 @@ func main() {
 		"Set the statistics type to print (all, 2s, 10sAvg, 10s1, 10s2, 10s3, 10s4, 10s5, 15m, 1h, 100m, 1nm, alpha)")
 	cleanupDeltaPercentageFlag = flag.Int("csp", 50,
 		"Clean up points where difference in speed is more than given percentage (default 50 %)")
-	cleanupDeltaKnotsFlag = flag.Float64("csk", 3,
-		"Clean up points where difference in speed is more than given number of knots (default 3 kts)")
+	cleanupDeltaKnotsFlag = flag.Float64("csk", 7,
+		"Clean up points where difference in speed is more than given number of knots (default 7 kts)")
 	saveFilteredGpxFlag = flag.Bool("sf", false, "Save filtered track to a new GPX file")
 
 	flag.Parse()
