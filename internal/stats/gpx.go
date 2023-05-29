@@ -22,6 +22,7 @@ type Gpx struct {
 // with multiple segments.
 type Trk struct {
 	XMLName xml.Name `xml:"trk"`
+	Name    string   `xml:"name"`
 	Trksegs []Trkseg `xml:"trkseg"`
 }
 
@@ -42,8 +43,9 @@ type Trkpt struct {
 }
 
 // ReadPointsGpx reads all available GPX Points from the Reader.
-func ReadPointsGpx(r io.Reader) ([]Point, error) {
-	res := []Point{}
+func ReadPointsGpx(r io.Reader) (Points, error) {
+	ps := []Point{}
+	res := Points{Ps: ps}
 
 	byteValue, err := ioutil.ReadAll(r)
 	if err != nil {
@@ -57,23 +59,29 @@ func ReadPointsGpx(r io.Reader) ([]Point, error) {
 		return res, err
 	}
 
+	if len(gpx.Trks) > 0 {
+		res.Name = gpx.Trks[0].Name
+	}
+
 	for trkIdx := 0; trkIdx < len(gpx.Trks); trkIdx++ {
 		for segIdx := 0; segIdx < len(gpx.Trks[trkIdx].Trksegs); segIdx++ {
 			points := gpx.Trks[trkIdx].Trksegs[segIdx].Trkpts
 			for ptIdx := 0; ptIdx < len(points); ptIdx++ {
 				p, err := readPointGpx(points[ptIdx])
 				if err != nil {
+					res.Ps = ps
 					return res, err
 				}
 
 				if p.isPoint {
-					p.globalIdx = len(res)
-					res = append(res, p)
+					p.globalIdx = len(ps)
+					ps = append(ps, p)
 				}
 			}
 		}
 	}
 
+	res.Ps = ps
 	return res, err
 }
 
@@ -84,15 +92,17 @@ func readPointGpx(trkpt Trkpt) (Point, error) {
 }
 
 // SavePointsAsGpx save points as GPX file.
-func SavePointsAsGpx(ps []Point, w io.Writer) error {
+func SavePointsAsGpx(p Points, w io.Writer) error {
 	gpx := Gpx{
 		XMLNS:   "http://www.topografix.com/GPX/1/1",
 		Creator: fmt.Sprintf("gps-stat version %s %s %s", version.Version, version.Platform, version.BuildTime),
-		Trks: []Trk{
-			{Trksegs: []Trkseg{
+		Trks: []Trk{{
+			Name: p.Name + " - cleaned up by gps-stat",
+			Trksegs: []Trkseg{
 				{Trkpts: []Trkpt{}}}}}}
 	trkpts := gpx.Trks[0].Trksegs[0].Trkpts
 
+	ps := p.Ps
 	for pIdx := 0; pIdx < len(ps); pIdx++ {
 		p := ps[pIdx]
 		trkpt := Trkpt{

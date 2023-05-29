@@ -9,23 +9,26 @@ import (
 )
 
 // ReadPointsSbn reads all available SBN Points from the Reader.
-func ReadPointsSbn(r io.Reader) ([]Point, error) {
-	res := []Point{}
+func ReadPointsSbn(r io.Reader) (Points, error) {
+	ps := []Point{}
+	res := Points{Name: "SBN track", Ps: ps}
 
 	p, err := readPointSbn(r)
 	for err == nil {
 		if err != nil {
+			res.Ps = ps
 			return res, err
 		}
 
 		if p.isPoint {
-			p.globalIdx = len(res)
-			res = append(res, p)
+			p.globalIdx = len(ps)
+			ps = append(ps, p)
 		}
 
 		p, err = readPointSbn(r)
 	}
 
+	res.Ps = ps
 	return res, err
 }
 

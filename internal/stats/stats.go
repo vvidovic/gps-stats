@@ -51,6 +51,12 @@ const (
 	TrackUnknown
 )
 
+// Points represent all GPS points from our GPS data
+type Points struct {
+	Name string
+	Ps   []Point
+}
+
 // Point represent one GPS point with timestamp.
 type Point struct {
 	isPoint    bool
@@ -352,7 +358,7 @@ func intFrom4sb(b4 []byte) int {
 }
 
 // ReadPoints read all Points from the Reader.
-func ReadPoints(r io.Reader) ([]Point, error) {
+func ReadPoints(r io.Reader) (Points, error) {
 	tt := determineType(r)
 
 	switch tt {
@@ -361,7 +367,7 @@ func ReadPoints(r io.Reader) ([]Point, error) {
 	case TrackGpx:
 		return ReadPointsGpx(r)
 	default:
-		return []Point{}, errs.Errorf("Unknown track type (%v).", tt)
+		return Points{Ps: []Point{}}, errs.Errorf("Unknown track type (%v).", tt)
 	}
 }
 
@@ -427,9 +433,27 @@ func distSimple(lat1, lon1, lat2, lon2 float64) float64 {
 func CleanUp(ps []Point, cleanupDeltaPercentageFlag int, cleanupDeltaKnotsFlag float64) []Point {
 	res := []Point{}
 	if len(ps) > 1 {
+		// Cleanup times first - if points are saved each 1 second, move points with
+		//   to ensure there is a point for each second.
+		// Proper GPS track should have data for each second.
+		pPrev := &ps[0]
+		for idxPs := 1; idxPs < len(ps)-1; idxPs++ {
+			pCurr := &ps[idxPs]
+			pNext := &ps[idxPs+1]
+
+			if pCurr.ts.Sub(pPrev.ts) == time.Second*1 && pNext.ts.Sub(pCurr.ts) == time.Second*2 {
+				pNext.ts = pNext.ts.Add(time.Second * -1)
+			}
+			if pCurr.ts.Sub(pPrev.ts) == time.Second*0 && pNext.ts.Sub(pCurr.ts) == time.Second*1 {
+				pCurr.ts = pCurr.ts.Add(time.Second * 1)
+			}
+			pPrev = pCurr
+		}
+
+		// Cleanup speeds - remove outlier points.
 		deltaPercMax := float64(1.0) + float64(cleanupDeltaPercentageFlag)/100.0
+		deltaPercMin := float64(1.0) - float64(cleanupDeltaPercentageFlag)/100.0
 		deltaKtsMax := cleanupDeltaKnotsFlag
-		fmt.Printf("dpm: %v, dkm: %v\n", deltaPercMax, deltaKtsMax)
 		res = append(res, ps[0], ps[1])
 		speedPrev := speed(ps[0], ps[1])
 		idxRes := 1
@@ -439,7 +463,7 @@ func CleanUp(ps []Point, cleanupDeltaPercentageFlag int, cleanupDeltaKnotsFlag f
 			speedDeltaKts := math.Abs(speedCur - speedPrev)
 			// Ignore points where the speed is above 3 kts and the speed difference
 			//   from the last two points increased or decreased more than 50%.
-			if speedDeltaPerc <= deltaPercMax || speedDeltaKts < deltaKtsMax {
+			if (speedDeltaPerc <= deltaPercMax && speedDeltaPerc >= deltaPercMin) || speedDeltaKts < deltaKtsMax {
 				speedPrev = speedCur
 				res = append(res, ps[idxPs])
 				idxRes++

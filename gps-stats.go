@@ -90,7 +90,8 @@ func printStatsForFile(filePath string, statType stats.StatFlag) {
 
 	r := bufio.NewReader(f)
 
-	ps, err := stats.ReadPoints(r)
+	points, err := stats.ReadPoints(r)
+	ps := points.Ps
 
 	if err != nil && err != io.EOF {
 		fmt.Printf("Error reading track points from '%s': %v\n", fileName, err)
@@ -102,6 +103,7 @@ func printStatsForFile(filePath string, statType stats.StatFlag) {
 
 	pointsNo := len(ps)
 	ps = stats.CleanUp(ps, *cleanupDeltaPercentageFlag, *cleanupDeltaKnotsFlag)
+	points.Ps = ps
 	pointsCleanedNo := len(ps)
 
 	if *saveFilteredGpxFlag {
@@ -115,7 +117,7 @@ func printStatsForFile(filePath string, statType stats.StatFlag) {
 			return
 		}
 
-		err = stats.SavePointsAsGpx(ps, f)
+		err = stats.SavePointsAsGpx(points, f)
 		if err != nil {
 			fmt.Printf("Error saving file '%s' for GPX export: %v\n", newFilePath, err)
 			if statType == stats.StatAll {
