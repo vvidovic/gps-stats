@@ -430,7 +430,7 @@ func distSimple(lat1, lon1, lat2, lon2 float64) float64 {
 }
 
 // CleanUp removes points that seems not valid.
-func CleanUp(psIn []Point, cleanupDeltaPercentageFlag int, cleanupDeltaKnotsFlag float64) []Point {
+func CleanUp(psIn []Point, cleanupDeltaKnotsFlag float64) []Point {
 	res := []Point{}
 	if len(psIn) > 1 {
 		// Cleanup times first - if points have same timestamp, remove both points.
@@ -455,27 +455,40 @@ func CleanUp(psIn []Point, cleanupDeltaPercentageFlag int, cleanupDeltaKnotsFlag
 			}
 		}
 
-		// Cleanup speeds - remove outlier points (fast stops are permitted - crashes).
-		deltaPercMax := float64(1.0) + float64(cleanupDeltaPercentageFlag)/100.0
+		// Cleanup speeds - remove outlier points:
+		// - fast stops are permitted - crashes or near stops
+		// - fast speedups are not permitted - errors
+		// - filter out series of points where the speed increases, decreases
+		//   and again increases in a short time period
 		deltaKtsMax := cleanupDeltaKnotsFlag
 		res = append(res, psCleanTimes[0], psCleanTimes[1])
 		speedPrev := speed(psCleanTimes[0], psCleanTimes[1])
 		idxRes := 1
-		for idxPs := 2; idxPs < len(psCleanTimes); idxPs++ {
+		for idxPs := 2; idxPs < len(psCleanTimes)-2; idxPs++ {
+			// Compare speed changes between 4 points
+			// (previous, current & next 2 points).
+			// 4 speeds: 3 speeds between 4 points + previous speed.
 			speedCur := speed(res[idxRes], psCleanTimes[idxPs])
-			speedDeltaPerc := math.Abs(speedCur / speedPrev)
-			speedDeltaKts := speedCur - speedPrev
-			speedDeltaKtsAbs := math.Abs(speedDeltaKts)
+			speedNext1 := speed(psCleanTimes[idxPs], psCleanTimes[idxPs+1])
+			speedNext2 := speed(psCleanTimes[idxPs+1], psCleanTimes[idxPs+2])
+			// 3 speed changes
+			speed0DeltaKts := speedCur - speedPrev
+			speed1DeltaKts := speedNext1 - speedCur
+			speed2DeltaKts := speedNext2 - speedNext1
+			// 2 differences between speed changes
+			diffDelta1 := speed0DeltaKts - speed1DeltaKts
+			diffDelta2 := speed1DeltaKts - speed2DeltaKts
+
 			// Ignore points where the speed difference between last two points
 			//   increases more than given params.
-			if speedDeltaPerc <= deltaPercMax || (speedDeltaKtsAbs < deltaKtsMax || speedDeltaKts < 0) {
-				// fmt.Printf("OK  idxPs: %v, idxRes: %v, speedCur: %v, dp: %v, dk: %v (%v)\n", idxPs, idxRes, speedCur, speedDeltaPerc, speedDeltaKts, psCleanTimes[idxPs].ts)
+			if (diffDelta1 < deltaKtsMax && diffDelta2 < deltaKtsMax) || speed0DeltaKts < 0 {
+				// fmt.Printf("OK  idxPs: %v, idxRes: %v, speedCur: %v, sd0: %v, sd1: %v, sd2: %v, dd1: %v, dd2: %v (%v)\n", idxPs, idxRes, speedCur, speed0DeltaKts, speed1DeltaKts, speed2DeltaKts, diffDelta1, diffDelta2, psCleanTimes[idxPs].ts)
 				speedPrev = speedCur
 				res = append(res, psCleanTimes[idxPs])
 				idxRes++
 				res[idxRes].globalIdx = idxRes
 			} else {
-				// fmt.Printf("NOK idxPs: %v, idxRes: %v, speedCur: %v, dp: %v, dk: %v (%v)\n", idxPs, idxRes, speedCur, speedDeltaPerc, speedDeltaKts, psCleanTimes[idxPs].ts)
+				// fmt.Printf("NOK idxPs: %v, idxRes: %v, speedCur: %v, sd0: %v, sd1: %v, sd2: %v, dd1: %v, dd2: %v (%v)\n", idxPs, idxRes, speedCur, speed0DeltaKts, speed1DeltaKts, speed2DeltaKts, diffDelta1, diffDelta2, psCleanTimes[idxPs].ts)
 			}
 		}
 	}
