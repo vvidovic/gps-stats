@@ -440,30 +440,68 @@ func distSimple(lat1, lon1, lat2, lon2 float64) float64 {
 
 // CleanUp removes points that seems not valid.
 func CleanUp(points Points, cleanupDeltaKnotsFlag float64) []Point {
-	psIn := points.Ps
+	psCurr := points.Ps
 	res := []Point{}
-	if len(psIn) > 1 {
-		// Cleanup times first - if points have same timestamp, remove both points.
-		// - this approach gave best results for GPX export from Amazfit T-Rex Pro
-		psCleanTimes := []Point{}
-		psCleanTimes = append(psCleanTimes, psIn[0])
-		psLen := len(psIn)
+	if len(psCurr) > 1 {
+		// Simple cleanup strategies working great for Amazfit T-Rex Pro:
+		// - if points have same timestamp, remove both points
+		// - removing points "around" missing points (1 before, 3 after)
+		//
+		// When we find missing point(s):
+		// - remove 1 point before the first missing point
+		// - remove 3 points after the last missing point
+		//
+		// For example, we should have seconds:
+		// - 43, 44, 45, 46, 47. 48, 49, 50, 51, 52, 53, 54
+		// There are only:
+		// - 43, 44, 45, 46,     48,     50, 51, 52, 53, 54
+		// We need to produce:
+		// - 43, 44, 45,         48,                 53, 54
+		psCleaned := []Point{}
+		psCleaned = append(psCleaned, psCurr[0])
+		psLen := len(psCurr)
 		for idxPs := 1; idxPs < psLen; idxPs++ {
-			pCurr := psIn[idxPs]
+			pCurr := psCurr[idxPs]
 
 			if idxPs < psLen-1 {
-				pNext := psIn[idxPs+1]
-				if pCurr.ts != pNext.ts {
-					psCleanTimes = append(psCleanTimes, pCurr)
-					pCurr = pNext
-				} else {
-					// Skip both points
+				pNext := psCurr[idxPs+1]
+				// fmt.Printf("curr / next ts: %v / %v, next - curr: %v\n", pCurr.ts, pNext.ts, pNext.ts.Sub(pCurr.ts).Seconds())
+				if pCurr.ts == pNext.ts {
+					// Skip both points if times are equal.
 					idxPs++
+					// fmt.Printf("====> skipping curr & next: %v & %v\n", pCurr, pNext)
+				} else {
+					// Remove points "around" missing points.
+					// Missing point is point more than 1 second after previous point.
+					dt := pNext.ts.Sub(pCurr.ts).Seconds()
+					if dt > 1 {
+						idxNext := idxPs + 1
+						idxLast := idxNext
+						// fmt.Printf("====> dt > 1, idxPs, idxNext, idxLast, pNext: %v, %v, %v, %v\n", idxPs, idxNext, idxLast, pNext)
+						for idxNext < psLen-1 && dt > 1 {
+							p1 := psCurr[idxNext]
+							p2 := psCurr[idxNext+1]
+							dt = p2.ts.Sub(p1.ts).Seconds()
+							idxLast = idxNext
+							idxNext++
+							// fmt.Printf("====> dt: %v, idxPs, idxNext, idxLast: %v, %v, %v\n", dt, idxPs, idxNext, idxLast)
+						}
+						// Skip points from the pCurr (first before first missing) to pLast + 2 (third after last missing)
+						idxPs += idxLast - idxPs + 2
+						// fmt.Printf("====> skipping from %v to %v\n", pCurr, psCurr[idxLast])
+					} else {
+						// fmt.Printf("adding %v\n", pCurr)
+						psCleaned = append(psCleaned, pCurr)
+						pCurr = pNext
+					}
 				}
 			} else {
-				psCleanTimes = append(psCleanTimes, pCurr)
+				psCleaned = append(psCleaned, pCurr)
 			}
 		}
+		psCurr = psCleaned
+		psCleaned = nil
+		// res = psCurr
 
 		// Cleanup speeds - remove outlier points:
 		// - fast stops are permitted - crashes or near stops
@@ -471,34 +509,32 @@ func CleanUp(points Points, cleanupDeltaKnotsFlag float64) []Point {
 		// - filter out series of points where the speed increases, decreases
 		//   and again increases in a short time period
 		deltaKtsMax := cleanupDeltaKnotsFlag
-		res = append(res, psCleanTimes[0], psCleanTimes[1])
-		speedPrev := speed(psCleanTimes[0], psCleanTimes[1])
+		res = append(res, psCurr[0], psCurr[1])
+		speedPrev := speed(psCurr[0], psCurr[1])
 		idxRes := 1
-		for idxPs := 2; idxPs < len(psCleanTimes)-2; idxPs++ {
-			// Compare speed changes between 4 points
-			// (previous, current & next 2 points).
-			// 4 speeds: 3 speeds between 4 points + previous speed.
-			speedCur := speed(res[idxRes], psCleanTimes[idxPs])
-			speedNext1 := speed(psCleanTimes[idxPs], psCleanTimes[idxPs+1])
-			speedNext2 := speed(psCleanTimes[idxPs+1], psCleanTimes[idxPs+2])
-			// 3 speed changes
+		for idxPs := 2; idxPs < len(psCurr)-1; idxPs++ {
+			// Compare speed changes between 3 points
+			// (previous, current & next point).
+			// 3 speeds: 2 speeds between 3 points + previous speed.
+			speedCur := speed(res[idxRes], psCurr[idxPs])
+			speedNext1 := speed(psCurr[idxPs], psCurr[idxPs+1])
+			// 2 speed changes
 			speed0DeltaKts := speedCur - speedPrev
 			speed1DeltaKts := speedNext1 - speedCur
-			speed2DeltaKts := speedNext2 - speedNext1
-			// 2 differences between speed changes
+			// 1 differences between speed changes
 			diffDelta1 := speed0DeltaKts - speed1DeltaKts
-			diffDelta2 := speed1DeltaKts - speed2DeltaKts
 
 			// Ignore points where the speed difference between last two points
 			//   increases more than given params.
-			if (diffDelta1 < deltaKtsMax && diffDelta2 < deltaKtsMax) || speed0DeltaKts < 0 {
-				// fmt.Printf("OK  idxPs: %v, idxRes: %v, speedCur: %v, sd0: %v, sd1: %v, sd2: %v, dd1: %v, dd2: %v (%v)\n", idxPs, idxRes, speedCur, speed0DeltaKts, speed1DeltaKts, speed2DeltaKts, diffDelta1, diffDelta2, psCleanTimes[idxPs].ts)
+			// if (diffDelta1 < deltaKtsMax && diffDelta2 < deltaKtsMax) || speed0DeltaKts < 0 {
+			if (diffDelta1 < deltaKtsMax) || speed0DeltaKts < 0 {
+				// fmt.Printf("OK  idxPs: %v, idxRes: %v, speedCur/n1/n2: %v/%v/%v, sd0: %v, sd1: %v, dd1: %v (%v)\n", idxPs, idxRes, speedCur, speedNext1, speedNext2, speed0DeltaKts, speed1DeltaKts, diffDelta1, psCurr[idxPs].ts)
 				speedPrev = speedCur
-				res = append(res, psCleanTimes[idxPs])
+				res = append(res, psCurr[idxPs])
 				idxRes++
 				res[idxRes].globalIdx = idxRes
 			} else {
-				// fmt.Printf("NOK idxPs: %v, idxRes: %v, speedCur: %v, sd0: %v, sd1: %v, sd2: %v, dd1: %v, dd2: %v (%v)\n", idxPs, idxRes, speedCur, speed0DeltaKts, speed1DeltaKts, speed2DeltaKts, diffDelta1, diffDelta2, psCleanTimes[idxPs].ts)
+				// fmt.Printf("==== NOK idxPs: %v, idxRes: %v, speedCur/n1/n2: %v/%v/%v, sd0: %v, sd1: %v, dd1: %v (%v)\n", idxPs, idxRes, speedCur, speedNext1, speedNext2, speed0DeltaKts, speed1DeltaKts, diffDelta1, psCurr[idxPs].ts)
 			}
 		}
 	}
