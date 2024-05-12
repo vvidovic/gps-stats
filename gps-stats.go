@@ -88,7 +88,6 @@ func printStatsForFile(filePath string, statType stats.StatFlag) {
 	r := bufio.NewReader(f)
 
 	points, err := stats.ReadPoints(r)
-	ps := points.Ps
 
 	if err != nil && err != io.EOF {
 		fmt.Printf("Error reading track points from '%s': %v\n", fileName, err)
@@ -98,8 +97,8 @@ func printStatsForFile(filePath string, statType stats.StatFlag) {
 		return
 	}
 
-	pointsNo := len(ps)
-	ps = stats.CleanUp(ps, *cleanupDeltaKnotsFlag)
+	pointsNo := len(points.Ps)
+	ps := stats.CleanUp(points, *cleanupDeltaKnotsFlag)
 	points.Ps = ps
 	pointsCleanedNo := len(ps)
 

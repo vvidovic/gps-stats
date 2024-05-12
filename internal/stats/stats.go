@@ -53,8 +53,10 @@ const (
 
 // Points represent all GPS points from our GPS data
 type Points struct {
-	Name string
-	Ps   []Point
+	Creator string
+	Name    string
+	Type    string
+	Ps      []Point
 }
 
 // Point represent one GPS point with timestamp.
@@ -62,11 +64,14 @@ type Point struct {
 	isPoint    bool
 	valid      bool
 	validCheck bool
+	ele        float64
 	lat        float64
 	lon        float64
 	ts         time.Time
 	usedFor10s bool
 	globalIdx  int
+	speed      *float64 // MetersPerSecond_t: This type contains a speed measured in meters per second.
+	hr         *int16   // BeatsPerMinute_t: This type contains a heart rate measured in beats per minute.
 }
 
 func (p Point) String() string {
@@ -74,9 +79,12 @@ func (p Point) String() string {
 }
 
 // Track is a collection of points and can contain sum of durations,
-//   sum of calculated distances and calculated speed.
+//
+//	sum of calculated distances and calculated speed.
+//
 // valid field can be used to mark that the Track is valid for the statistic
-//   we are currently preparing.
+//
+//	we are currently preparing.
 type Track struct {
 	ps       []Point
 	duration float64
@@ -100,7 +108,8 @@ func (t Track) String() string {
 }
 
 // reCalculate sums durations and distanes from points and calculates
-//   speed from those.
+//
+//	speed from those.
 func (t Track) reCalculate() Track {
 	t.duration = 0
 	t.distance = 0
@@ -117,18 +126,18 @@ func (t Track) reCalculate() Track {
 }
 
 // addPointMinDuration
-// - add a new Point to the end of the Track
-// - ensures the Track is no shorter than minDuration (removing Points from the
-//   beginning of the Track if possible)
+//   - add a new Point to the end of the Track
+//   - ensures the Track is no shorter than minDuration (removing Points from the
+//     beginning of the Track if possible)
 func (t Track) addPointMinDuration(p Point, minDuration float64) Track {
 	return t.addPointMinDurationUnused10s(p, minDuration, false)
 }
 
 // addPointMinDurationUnused10s
-// - start a new track if unused10sOnly is true and the current point is used or
-// - add a new Point to the end of the Track
-// - ensures the Track is no shorter than minDuration (removing Points from the
-//   beginning of the Track if possible)
+//   - start a new track if unused10sOnly is true and the current point is used or
+//   - add a new Point to the end of the Track
+//   - ensures the Track is no shorter than minDuration (removing Points from the
+//     beginning of the Track if possible)
 func (t Track) addPointMinDurationUnused10s(
 	p Point, minDuration float64, unused10sOnly bool) Track {
 	if unused10sOnly && p.usedFor10s {
@@ -160,9 +169,9 @@ func (t Track) addPointMinDurationUnused10s(
 }
 
 // addPointMinDistance
-// - add a new Point to the end of the Track
-// - ensures the Track is no shorter than minDistance (removing Points from the
-//   beginning of the Track if possible)
+//   - add a new Point to the end of the Track
+//   - ensures the Track is no shorter than minDistance (removing Points from the
+//     beginning of the Track if possible)
 func (t Track) addPointMinDistance(p Point, minDistance float64) Track {
 	t.ps = append(t.ps, p)
 	l := len(t.ps)
@@ -190,24 +199,24 @@ func (t Track) addPointMinDistance(p Point, minDistance float64) Track {
 }
 
 // addPointAlpha500
-// - add a new Point to the end of the Track for Alpha 500 m calculation
-// - ensures the Track is as close but no longer than 500 m
-// - try to find the subtrack that contains alpha for entry/exit gate max 50 m
-// - return two Tracks: "this" Track and subtrack containing best alpha
-//   (as described above)
+//   - add a new Point to the end of the Track for Alpha 500 m calculation
+//   - ensures the Track is as close but no longer than 500 m
+//   - try to find the subtrack that contains alpha for entry/exit gate max 50 m
+//   - return two Tracks: "this" Track and subtrack containing best alpha
+//     (as described above)
 func (t Track) addPointAlpha500(p Point) (Track, Track) {
 	return t.addPointAlphaMaxDistance(p, 500, 100, 50)
 }
 
 // addPointAlphaMaxDistance
-// - add a new Point to the end of the Track for Alpha calculation
-// - ensures the Track is as close but no longer than maxDistance (removing
-//   Points from the beginning of the Track if possible)
-// - try to find the subtrack that is no shorter than minDistance (to ensure
-//   this is alpha and no riding straight) and that the first and the last point
-//   are ate most gateSize away
-// - return two Tracks: "this" Track and subtrack containing best alpha
-//   (as described above)
+//   - add a new Point to the end of the Track for Alpha calculation
+//   - ensures the Track is as close but no longer than maxDistance (removing
+//     Points from the beginning of the Track if possible)
+//   - try to find the subtrack that is no shorter than minDistance (to ensure
+//     this is alpha and no riding straight) and that the first and the last point
+//     are ate most gateSize away
+//   - return two Tracks: "this" Track and subtrack containing best alpha
+//     (as described above)
 func (t Track) addPointAlphaMaxDistance(p Point,
 	maxDistance, minDistance, gateSize float64) (Track, Track) {
 	t.ps = append(t.ps, p)
@@ -430,7 +439,8 @@ func distSimple(lat1, lon1, lat2, lon2 float64) float64 {
 }
 
 // CleanUp removes points that seems not valid.
-func CleanUp(psIn []Point, cleanupDeltaKnotsFlag float64) []Point {
+func CleanUp(points Points, cleanupDeltaKnotsFlag float64) []Point {
+	psIn := points.Ps
 	res := []Point{}
 	if len(psIn) > 1 {
 		// Cleanup times first - if points have same timestamp, remove both points.
