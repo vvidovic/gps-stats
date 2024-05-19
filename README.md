@@ -5,6 +5,8 @@
 
 Multiple files can be analyzed at once.
 
+Units of speed is kts (default), m/s or km/h.
+
 Results are the following stats:
 - Total Distance
 - 2 Second Peak
@@ -37,6 +39,22 @@ Total Duration:     02.675 h
 Nautical Mile:      13.804 kts (261 sec, 1853.402 m, 2022-10-14 14:35:47 +0000 UTC)
 Alpha 500:          14.381 kts (29 sec, 214.553 m, 2022-10-14 14:48:26 +0000 UTC)
 
+$ gps-stats -su kmh ../gps-data/VVidovic_113200915_20221014_140124.SBN
+Found 9341 track points in 'VVidovic_113200915_20221014_140124.SBN', after cleanup 9027 points left.
+Total Distance:     48.431 km
+Total Duration:     02.672 h
+2 Second Peak:      32.712 kmh (2 sec, 18.174 m, 2022-10-14 14:40:37 +0000 UTC)
+5x10 Average:       30.916 kmh
+  Top 1 5x10 speed: 31.748 kmh (10 sec, 88.188 m, 2022-10-14 14:40:35 +0000 UTC)
+  Top 2 5x10 speed: 30.983 kmh (10 sec, 86.064 m, 2022-10-14 14:36:22 +0000 UTC)
+  Top 3 5x10 speed: 30.889 kmh (10 sec, 85.803 m, 2022-10-14 14:48:27 +0000 UTC)
+  Top 4 5x10 speed: 30.808 kmh (10 sec, 85.577 m, 2022-10-14 14:41:48 +0000 UTC)
+  Top 5 5x10 speed: 30.153 kmh (10 sec, 83.758 m, 2022-10-14 14:33:12 +0000 UTC)
+15 Min:             23.105 kmh (900 sec, 5776.151 m, 2022-10-14 14:34:22 +0000 UTC)
+1 Hr:               21.034 kmh (3600 sec, 21034.273 m, 2022-10-14 14:17:55 +0000 UTC)
+100m peak:          31.453 kmh (12 sec, 104.844 m, 2022-10-14 14:40:34 +0000 UTC)
+Nautical Mile:      25.564 kmh (261 sec, 1853.402 m, 2022-10-14 14:35:47 +0000 UTC)
+Alpha 500:          26.634 kmh (29 sec, 214.553 m, 2022-10-14 14:48:26 +0000 UTC)
 
 $ go run gps-stats.go -t=alpha ../gps-data/VVidovic_113200915_20221014_140124.SBN
 14.381 (VVidovic_113200915_20221014_140124.SBN)

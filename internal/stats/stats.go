@@ -16,7 +16,8 @@ const (
 	// SI base unit	   6.3781×106 m[1]
 	// Metric system	   6,357 to 6,378 km
 	earthRadius      = 6370000  // Earth Radius in meters
-	mPerSecToKts     = 1.94384  // Number of KTS in 1 m/s
+	mPerSecToKts     = 1.94384  // Number of kts in 1 m/s
+	mPerSecToKmh     = 3.6      // Number of km/h in 1 m/s
 	earthCircPoles   = 40007863 // Earth Circumference around poles
 	earthCircEquator = 40075017 // Earth Circumference around equator
 )
@@ -41,6 +42,30 @@ const (
 	Stat1nm
 	StatAlpha
 )
+
+// UnitsFlag shows which speed units are we printing.
+type UnitsFlag int64
+
+// UnitsFlag shows which speed units are we printing.
+const (
+	UnitsMs UnitsFlag = iota
+	UnitsKmh
+	UnitsKts
+)
+
+func (u UnitsFlag) String() string {
+	unitsName := "ms"
+	switch u {
+	case UnitsMs:
+		unitsName = "ms"
+	case UnitsKmh:
+		unitsName = "kmh"
+	case UnitsKts:
+		unitsName = "kts"
+	}
+
+	return unitsName
+}
 
 // TrackType defines type of track file.
 type TrackType int64
@@ -86,11 +111,12 @@ func (p Point) String() string {
 //
 //	we are currently preparing.
 type Track struct {
-	ps       []Point
-	duration float64
-	distance float64
-	speed    float64
-	valid    bool
+	ps         []Point
+	duration   float64
+	distance   float64
+	speed      float64
+	speedUnits UnitsFlag
+	valid      bool
 }
 
 // TxtLine display human-readable entry for each track.
@@ -99,8 +125,8 @@ func (t Track) TxtLine() string {
 	if len(t.ps) > 0 {
 		timestamp = t.ps[0].ts
 	}
-	return fmt.Sprintf("%06.3f kts (%0.0f sec, %06.3f m, %v)",
-		t.speed, t.duration, t.distance, timestamp)
+	return fmt.Sprintf("%06.3f %s (%0.0f sec, %06.3f m, %v)",
+		t.speed, t.speedUnits, t.duration, t.distance, timestamp)
 }
 func (t Track) String() string {
 	return fmt.Sprintf("dur: %v, dist: %v, speed: %v, ps[0]: %v\n",
@@ -119,7 +145,7 @@ func (t Track) reCalculate() Track {
 		t.distance += distance(t.ps[i], t.ps[i+1])
 	}
 	if t.duration > 0 {
-		t.speed = t.distance / t.duration * mPerSecToKts
+		t.speed = MsToUnits(t.distance/t.duration, t.speedUnits)
 	}
 
 	return t
@@ -141,14 +167,14 @@ func (t Track) addPointMinDuration(p Point, minDuration float64) Track {
 func (t Track) addPointMinDurationUnused10s(
 	p Point, minDuration float64, unused10sOnly bool) Track {
 	if unused10sOnly && p.usedFor10s {
-		return Track{}
+		return Track{speedUnits: t.speedUnits}
 	}
 	t.ps = append(t.ps, p)
 	l := len(t.ps)
 	if l > 1 {
 		t.duration = t.duration + t.ps[l-1].ts.Sub(t.ps[l-2].ts).Seconds()
 		t.distance = t.distance + distance(t.ps[l-2], t.ps[l-1])
-		t.speed = t.distance / t.duration * mPerSecToKts
+		t.speed = MsToUnits(t.distance/t.duration, t.speedUnits)
 		t.valid = t.duration >= minDuration
 
 		// Let's check if we can remove some points from the start of this track.
@@ -161,7 +187,7 @@ func (t Track) addPointMinDurationUnused10s(
 				t.ps = t.ps[1:]
 				durTest = t.duration - t.ps[1].ts.Sub(t.ps[0].ts).Seconds()
 			}
-			t.speed = t.distance / t.duration * mPerSecToKts
+			t.speed = MsToUnits(t.distance/t.duration, t.speedUnits)
 		}
 	}
 
@@ -178,7 +204,7 @@ func (t Track) addPointMinDistance(p Point, minDistance float64) Track {
 	if l > 1 {
 		t.duration = t.duration + t.ps[l-1].ts.Sub(t.ps[l-2].ts).Seconds()
 		t.distance = t.distance + distance(t.ps[l-2], t.ps[l-1])
-		t.speed = t.distance / t.duration * mPerSecToKts
+		t.speed = MsToUnits(t.distance/t.duration, t.speedUnits)
 		t.valid = t.distance >= minDistance
 
 		// Let's check if we can remove some points from the start of this track.
@@ -191,7 +217,7 @@ func (t Track) addPointMinDistance(p Point, minDistance float64) Track {
 				t.ps = t.ps[1:]
 				distTest = t.distance - distance(t.ps[0], t.ps[1])
 			}
-			t.speed = t.distance / t.duration * mPerSecToKts
+			t.speed = MsToUnits(t.distance/t.duration, t.speedUnits)
 		}
 	}
 
@@ -251,14 +277,14 @@ func (t Track) addPointAlphaMaxDistance(p Point,
 				break
 			}
 			if gateDistance <= gateSize && subtrackDistance >= minDistance {
-				subtrack := Track{ps: t.ps[i:], valid: true}.reCalculate()
+				subtrack := Track{ps: t.ps[i:], valid: true, speedUnits: t.speedUnits}.reCalculate()
 				return t, subtrack
 			}
 			subtrackDistance = subtrackDistance - distance(t.ps[i], t.ps[i+1])
 		}
 	}
 
-	return t, Track{}
+	return t, Track{speedUnits: t.speedUnits}
 }
 
 // Stats constains calculated statistics.
@@ -272,6 +298,7 @@ type Stats struct {
 	speed100m     Track
 	speed1NM      Track
 	alpha500m     Track
+	speedUnits    UnitsFlag
 }
 
 // TxtSingleStat returns a single statistic.
@@ -311,7 +338,7 @@ func (s Stats) TxtStats() string {
 		`Total Distance:     %06.3f km
 Total Duration:     %06.3f h
 2 Second Peak:      %s
-5x10 Average:       %06.3f kts
+5x10 Average:       %06.3f %s
   Top 1 5x10 speed: %s
   Top 2 5x10 speed: %s
   Top 3 5x10 speed: %s
@@ -327,6 +354,7 @@ Alpha 500:          %s
 		s.totalDuration,
 		s.speed2s.TxtLine(),
 		s.Calc5x10sAvg(),
+		s.speedUnits,
 		s.speed5x10s[0].TxtLine(), s.speed5x10s[1].TxtLine(),
 		s.speed5x10s[2].TxtLine(), s.speed5x10s[3].TxtLine(),
 		s.speed5x10s[4].TxtLine(),
@@ -399,11 +427,11 @@ func determineType(r io.Reader) TrackType {
 }
 
 // speed calculate speed as a result of moving between two Points.
-func speed(p1, p2 Point) float64 {
+func speed(p1, p2 Point, speedUnits UnitsFlag) float64 {
 	d := distance(p1, p2)
 	dt := p2.ts.Sub(p1.ts)
 
-	speed := d / dt.Seconds() * mPerSecToKts
+	speed := MsToUnits(d/dt.Seconds(), speedUnits)
 
 	return speed
 }
@@ -439,7 +467,7 @@ func distSimple(lat1, lon1, lat2, lon2 float64) float64 {
 }
 
 // CleanUp removes points that seems not valid.
-func CleanUp(points Points, cleanupDeltaKnotsFlag float64) []Point {
+func CleanUp(points Points, deltaSpeedMax float64, speedUnits UnitsFlag) []Point {
 	psCurr := points.Ps
 	res := []Point{}
 	if len(psCurr) > 1 {
@@ -508,26 +536,25 @@ func CleanUp(points Points, cleanupDeltaKnotsFlag float64) []Point {
 		// - fast speedups are not permitted - errors
 		// - filter out series of points where the speed increases, decreases
 		//   and again increases in a short time period
-		deltaKtsMax := cleanupDeltaKnotsFlag
 		res = append(res, psCurr[0], psCurr[1])
-		speedPrev := speed(psCurr[0], psCurr[1])
+		speedPrev := speed(psCurr[0], psCurr[1], speedUnits)
 		idxRes := 1
 		for idxPs := 2; idxPs < len(psCurr)-1; idxPs++ {
 			// Compare speed changes between 3 points
 			// (previous, current & next point).
 			// 3 speeds: 2 speeds between 3 points + previous speed.
-			speedCur := speed(res[idxRes], psCurr[idxPs])
-			speedNext1 := speed(psCurr[idxPs], psCurr[idxPs+1])
+			speedCur := speed(res[idxRes], psCurr[idxPs], speedUnits)
+			speedNext1 := speed(psCurr[idxPs], psCurr[idxPs+1], speedUnits)
 			// 2 speed changes
-			speed0DeltaKts := speedCur - speedPrev
-			speed1DeltaKts := speedNext1 - speedCur
+			speed0Delta := speedCur - speedPrev
+			speed1Delta := speedNext1 - speedCur
 			// 1 differences between speed changes
-			diffDelta1 := speed0DeltaKts - speed1DeltaKts
+			diffDelta1 := speed0Delta - speed1Delta
 
 			// Ignore points where the speed difference between last two points
 			//   increases more than given params.
 			// if (diffDelta1 < deltaKtsMax && diffDelta2 < deltaKtsMax) || speed0DeltaKts < 0 {
-			if (diffDelta1 < deltaKtsMax) || speed0DeltaKts < 0 {
+			if (diffDelta1 < deltaSpeedMax) || speed0Delta < 0 {
 				// fmt.Printf("OK  idxPs: %v, idxRes: %v, speedCur/n1/n2: %v/%v/%v, sd0: %v, sd1: %v, dd1: %v (%v)\n", idxPs, idxRes, speedCur, speedNext1, speedNext2, speed0DeltaKts, speed1DeltaKts, diffDelta1, psCurr[idxPs].ts)
 				speedPrev = speedCur
 				res = append(res, psCurr[idxPs])
@@ -543,18 +570,21 @@ func CleanUp(points Points, cleanupDeltaKnotsFlag float64) []Point {
 }
 
 // CalculateStats calculate statistics from cleaned up points.
-func CalculateStats(ps []Point, statType StatFlag) Stats {
-	res := Stats{}
+func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag) Stats {
+	switch speedUnits {
+	case UnitsMs:
+	}
+	res := Stats{speedUnits: speedUnits}
 	res.speed5x10s = append(res.speed5x10s,
-		Track{}, Track{}, Track{}, Track{}, Track{})
+		Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits})
 	if len(ps) > 1 {
-		track2s := Track{}
-		track15m := Track{}
-		track1h := Track{}
-		track100m := Track{}
-		track1NM := Track{}
-		trackAlpha500m := Track{}
-		subtrackAlpha500m := Track{}
+		track2s := Track{speedUnits: speedUnits}
+		track15m := Track{speedUnits: speedUnits}
+		track1h := Track{speedUnits: speedUnits}
+		track100m := Track{speedUnits: speedUnits}
+		track1NM := Track{speedUnits: speedUnits}
+		trackAlpha500m := Track{speedUnits: speedUnits}
+		subtrackAlpha500m := Track{speedUnits: speedUnits}
 
 		switch statType {
 		case StatAll:
@@ -632,7 +662,7 @@ func CalculateStats(ps []Point, statType StatFlag) Stats {
 		case StatAll, Stat10sAvg, Stat10s1, Stat10s2, Stat10s3, Stat10s4, Stat10s5:
 			// 5 x 10 secs need to gather 5 different, non-overlapping tracks.
 			for track5x10sIdx := 0; track5x10sIdx < 5; track5x10sIdx++ {
-				track5x10s := Track{}
+				track5x10s := Track{speedUnits: speedUnits}
 				track5x10s = track5x10s.addPointMinDurationUnused10s(ps[0], 10, true)
 				for i := 1; i < len(ps); i++ {
 					track5x10s = track5x10s.addPointMinDurationUnused10s(ps[i], 10, true)
@@ -651,4 +681,23 @@ func CalculateStats(ps []Point, statType StatFlag) Stats {
 	}
 
 	return res
+}
+
+// KtsToMs converts kts to m/s.
+func KtsToMs(speedKts float64) float64 {
+	return speedKts / mPerSecToKts
+}
+
+// MsToUnits converts m/s to specified units.
+func MsToUnits(speedMs float64, speedUnits UnitsFlag) float64 {
+	switch speedUnits {
+	case UnitsMs:
+		return speedMs
+	case UnitsKmh:
+		return speedMs * mPerSecToKmh
+	case UnitsKts:
+		return speedMs * mPerSecToKts
+	default:
+		return speedMs
+	}
 }
