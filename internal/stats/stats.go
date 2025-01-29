@@ -29,6 +29,8 @@ type StatFlag int64
 const (
 	StatNone StatFlag = iota
 	StatAll
+	StatDistance
+	StatDuration
 	Stat2s
 	Stat10sAvg
 	Stat10s1
@@ -306,6 +308,10 @@ func (s Stats) TxtSingleStat(statType StatFlag) string {
 	switch statType {
 	case Stat2s:
 		return s.speed2s.TxtLine()
+	case StatDistance:
+		return fmt.Sprintf("%06.3f km", s.totalDistance/1000)
+	case StatDuration:
+		return fmt.Sprintf("%06.3f h", s.totalDuration)
 	case Stat10sAvg:
 		return fmt.Sprintf("%06.3f", s.Calc5x10sAvg())
 	case Stat10s1:

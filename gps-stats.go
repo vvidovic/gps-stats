@@ -25,7 +25,7 @@ func main() {
 	helpFlag = flag.Bool("h", false, "Show gps-stats usage with examples")
 	versionFlag = flag.Bool("v", false, "Show gps-stats version")
 	statTypeFlag = flag.String("t", "all",
-		"Set the statistics type to print (all, 2s, 10sAvg, 10s1, 10s2, 10s3, 10s4, 10s5, 15m, 1h, 100m, 1nm, alpha - default all)")
+		"Set the statistics type to print (all, dist, dur, 2s, 10sAvg, 10s1, 10s2, 10s3, 10s4, 10s5, 15m, 1h, 100m, 1nm, alpha - default all)")
 	cleanupDeltaSpeedFlag = flag.Float64("cs", 0,
 		"Clean up points where speed changes are more than given number of speed units (default 5 kts)")
 	speedUnitsFlag = flag.String("su", "kts",
@@ -47,6 +47,10 @@ func main() {
 			statType = stats.StatAll
 		case "2s":
 			statType = stats.Stat2s
+		case "dist":
+			statType = stats.StatDistance
+		case "dur":
+			statType = stats.StatDuration
 		case "10sAvg":
 			statType = stats.Stat10sAvg
 		case "10s1":
@@ -178,7 +182,7 @@ func showUsage(exitStatus int) {
 	fmt.Println("  -h Show usage (optional)")
 	fmt.Println("  -v Show version (optional)")
 	fmt.Println("  -t Set the statistics type to print (optional, default all)")
-	fmt.Println("     (all, 2s, 10sAvg, 10s1, 10s2, 10s3, 10s4, 10s5, 15m, 1h, 100m, 1nm, alpha)")
+	fmt.Println("     (all, dist, dur, 2s, 10sAvg, 10s1, 10s2, 10s3, 10s4, 10s5, 15m, 1h, 100m, 1nm, alpha)")
 	fmt.Println("  -su Set the speed units to print (optional, default kts)")
 	fmt.Println("      (kts, kmh, ms)")
 	fmt.Println("  -sf Save filtered points as a new GPX file without points detected as errors")
