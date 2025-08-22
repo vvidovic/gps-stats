@@ -971,10 +971,10 @@ func DetectTackTypeFirstN(track Track, windDir float64, n int) TackType {
 	relHeading := math.Mod(avgHeading-windDir+360, 360)
 
 	if relHeading >= 0 && relHeading < 180 {
-		return StarboardTack
+		return PortTack
 	}
 	if relHeading >= 180 && relHeading < 360 {
-		return PortTack
+		return StarboardTack
 	}
 	return UnknownTack
 }
