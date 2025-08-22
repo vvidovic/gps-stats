@@ -19,6 +19,8 @@ var (
 	cleanupDeltaSpeedFlag *float64
 	speedUnitsFlag        *string
 	saveFilteredGpxFlag   *bool
+	windDirFlag           *float64
+	autoWindDirFlag       *string
 )
 
 func main() {
@@ -31,6 +33,8 @@ func main() {
 	speedUnitsFlag = flag.String("su", "kts",
 		"Set the speed units printed (kts, kmh, ms - default kts)")
 	saveFilteredGpxFlag = flag.Bool("sf", false, "Save filtered track to a new GPX file")
+	windDirFlag = flag.Float64("wd", -1, "Wind direction in degrees (0-360, degree from where it comes from)")
+	autoWindDirFlag = flag.String("awd", "", "Auto-detect wind direction (optionally specify 'jibe' or 'tack' as the more common maneuver)")
 
 	flag.Parse()
 
@@ -92,12 +96,12 @@ func main() {
 		}
 
 		for i := 0; i < len(flag.Args()); i++ {
-			printStatsForFile(flag.Args()[i], statType, speedUnits)
+			printStatsForFile(flag.Args()[i], statType, speedUnits, *windDirFlag)
 		}
 	}
 }
 
-func printStatsForFile(filePath string, statType stats.StatFlag, speedUnits stats.UnitsFlag) {
+func printStatsForFile(filePath string, statType stats.StatFlag, speedUnits stats.UnitsFlag, windDir float64) {
 	f, err := os.Open(filePath)
 	if err != nil {
 		return
@@ -126,6 +130,11 @@ func printStatsForFile(filePath string, statType stats.StatFlag, speedUnits stat
 	points.Ps = ps
 	pointsCleanedNo := len(ps)
 
+	// Auto-detect wind direction if requested
+	if *autoWindDirFlag != "" {
+		windDir = stats.AutoDetectWindDir(ps, *autoWindDirFlag)
+	}
+
 	if *saveFilteredGpxFlag {
 		newFilePath := filePath + ".filtered.gpx"
 		f, err := os.Create(newFilePath)
@@ -152,7 +161,7 @@ func printStatsForFile(filePath string, statType stats.StatFlag, speedUnits stat
 		}
 	}
 
-	s := stats.CalculateStats(ps, statType, speedUnits)
+	s := stats.CalculateStats(ps, statType, speedUnits, windDir)
 
 	switch statType {
 	case stats.StatAll:
@@ -183,6 +192,9 @@ func showUsage(exitStatus int) {
 	fmt.Println("  -v Show version (optional)")
 	fmt.Println("  -t Set the statistics type to print (optional, default all)")
 	fmt.Println("     (all, dist, dur, 2s, 10sAvg, 10s1, 10s2, 10s3, 10s4, 10s5, 15m, 1h, 100m, 1nm, alpha)")
+	fmt.Println("  -wd Set the wind direction in degrees (0-360, degree from where it comes from) (optional)")
+	fmt.Println("  -awd Auto-detect wind direction (optional, default jibe)")
+	fmt.Println("       (jibe, tack)")
 	fmt.Println("  -su Set the speed units to print (optional, default kts)")
 	fmt.Println("      (kts, kmh, ms)")
 	fmt.Println("  -sf Save filtered points as a new GPX file without points detected as errors")
