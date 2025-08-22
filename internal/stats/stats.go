@@ -993,11 +993,11 @@ func detectTurnType(ps []Point, windDir float64) TurnType {
 			diff = 360 - diff
 		}
 		// Upwind (tack): heading near into the wind (~30 degrees)
-		if diff < 30 {
+		if diff < 20 {
 			upwindPoints++
 		}
 		// Downwind (jibe): heading near wind direction (~30 degrees)
-		if math.Abs(diff-180) < 30 {
+		if math.Abs(diff-180) < 20 {
 			downwindPoints++
 		}
 	}
