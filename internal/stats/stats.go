@@ -1041,42 +1041,76 @@ func AutoDetectWindDir(ps []Point, prefer string) float64 {
 		bin := int(h/10) % 36
 		bins[bin]++
 	}
-	// 3. Find the two most frequent directions (modes)
-	primaryBin, secondaryBin := -1, -1
-	primaryCount, secondaryCount := 0, 0
+
+	// 3. Find the most populated bin, then find the most populated bin that is 180° apart
+	primaryBin := -1
+	primaryCount := 0
 	for i, count := range bins {
 		if count > primaryCount {
-			secondaryCount, secondaryBin = primaryCount, primaryBin
-			primaryCount, primaryBin = count, i
-		} else if count > secondaryCount {
-			secondaryCount, secondaryBin = count, i
+			primaryCount = count
+			primaryBin = i
 		}
 	}
-	if primaryBin == -1 || secondaryBin == -1 {
+	if primaryBin == -1 {
 		return -1
 	}
-	// 4. Find the midpoint between the two directions (headings)
-	h1 := float64(primaryBin)*10 + 5 // middle of the bin
-	// h2 := float64(secondaryBin)*10 + 5
-	// difference between directions
-	// diff := math.Mod(h2-h1+360, 360)
+	// Find the bin that is 180° apart (opposite direction) with the highest count
+	oppositeBin := (primaryBin + 18) % 36
+	secondaryBin := -1
+	secondaryCount := 0
+	// Search for the most populated bin among bins that are within ±1 bin of the exact opposite
+	for offset := -1; offset <= 1; offset++ {
+		bin := (oppositeBin + offset + 36) % 36
+		if bins[bin] > secondaryCount {
+			secondaryCount = bins[bin]
+			secondaryBin = bin
+		}
+	}
+	if secondaryBin == -1 || secondaryCount == 0 {
+		return -1
+	}
 
-	// Wind direction is perpendicular to the heading
-	// Two candidates: (h1 + 90) % 360 and (h1 - 90 + 360) % 360
-	wd1 := math.Mod(h1+90, 360)
-	wd2 := math.Mod(h1-90+360, 360)
-	// 5. Determine which candidate is correct based on the preferred maneuver
-	// Count turns (jibe/tack) for both candidates
+	// 4. Collect all headings from both bins (primary and secondary/opposite), rotate secondary by 180°
+	selectedHeadings := []float64{}
+	for _, h := range headings {
+		bin := int(h/10) % 36
+		// does the bin belong to the primary bin or its neighbors
+		if bin == primaryBin || bin == (primaryBin+1)%36 || bin == (primaryBin+35)%36 {
+			selectedHeadings = append(selectedHeadings, h)
+		} else if bin == secondaryBin || bin == (secondaryBin+1)%36 || bin == (secondaryBin+35)%36 {
+			// rotate by 180°
+			rotated := math.Mod(h+180, 360)
+			selectedHeadings = append(selectedHeadings, rotated)
+		}
+	}
+	if len(selectedHeadings) == 0 {
+		return -1
+	}
+
+	// 5. Calculate the mean heading (circular mean)
+	sumSin, sumCos := 0.0, 0.0
+	for _, h := range selectedHeadings {
+		rad := h * math.Pi / 180
+		sumSin += math.Sin(rad)
+		sumCos += math.Cos(rad)
+	}
+	avgHeading := math.Atan2(sumSin, sumCos) * 180 / math.Pi
+	if avgHeading < 0 {
+		avgHeading += 360
+	}
+
+	// 6. Wind direction is perpendicular to the mean heading
+	wd1 := math.Mod(avgHeading+90, 360)
+	wd2 := math.Mod(avgHeading-90+360, 360)
+
+	// 7. Determine which candidate is correct based on the preferred maneuver
 	jibe1, tack1 := 0, 0
 	jibe2, tack2 := 0, 0
-
-	// State machine for turn detection: only count a new turn after returning to Unknown
 	prev1 := UnknownTurn
 	prev2 := UnknownTurn
-	for i := 0; i < len(headings); i++ {
-		t1 := detectTurnTypeFromHeading(headings[i], wd1)
-		t2 := detectTurnTypeFromHeading(headings[i], wd2)
-		// For wd1
+	for _, h := range selectedHeadings {
+		t1 := detectTurnTypeFromHeading(h, wd1)
+		t2 := detectTurnTypeFromHeading(h, wd2)
 		if t1 != UnknownTurn && prev1 == UnknownTurn {
 			if t1 == JibeTurn {
 				jibe1++
@@ -1085,7 +1119,6 @@ func AutoDetectWindDir(ps []Point, prefer string) float64 {
 			}
 		}
 		prev1 = t1
-		// For wd2
 		if t2 != UnknownTurn && prev2 == UnknownTurn {
 			if t2 == JibeTurn {
 				jibe2++
