@@ -1117,7 +1117,7 @@ func AutoDetectWindDir(ps []Point, prefer TurnType) float64 {
 	jibe2, tack2 := 0, 0
 	prev1 := TurnUnknown
 	prev2 := TurnUnknown
-	for _, h := range selectedHeadings {
+	for _, h := range headings {
 		t1 := detectTurnTypeFromHeading(h, wd1)
 		t2 := detectTurnTypeFromHeading(h, wd2)
 		if t1 != TurnUnknown && prev1 == TurnUnknown {
@@ -1137,7 +1137,6 @@ func AutoDetectWindDir(ps []Point, prefer TurnType) float64 {
 		}
 		prev2 = t2
 	}
-
 	// Determine wd based on preferred maneuver
 	var result float64
 	if prefer == TurnTack {
