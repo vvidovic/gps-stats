@@ -106,23 +106,26 @@ func (p Point) String() string {
 	return fmt.Sprintf("{%v/%v (%v)}", p.lat, p.lon, p.ts)
 }
 
+// TurnType is used to distinguish between a turn type, can be jibe or tack.
 type TurnType int64
 
+// TurnType is used to distinguish between a turn type, can be jibe or tack.
 const (
-	UnknownTurn TurnType = iota
-	JibeTurn
-	TackTurn
+	TurnUnknown TurnType = iota
+	TurnJibe
+	TurnTack
 )
 
 func (t TurnType) String() string {
+	turnName := ""
 	switch t {
-	case JibeTurn:
-		return "jibe"
-	case TackTurn:
-		return "tack"
-	default:
-		return ""
+	case TurnJibe:
+		turnName = "jibe"
+	case TurnTack:
+		turnName = "tack"
 	}
+
+	return turnName
 }
 
 type TackType int64
@@ -412,7 +415,7 @@ func (s Stats) TxtStats() string {
 	}
 
 	fmt.Fprintf(&b, "Jibes Count:        %d\n", s.jibesCount)
-	
+
 	if s.wDirStats != nil {
 		fmt.Fprintf(&b, "Tacks Count:        %d\n", s.wDirStats.tacksCount)
 	}
@@ -717,8 +720,8 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, windDir
 			setTackTypeToTracks(windDir, []*Track{&trackTurn500m, &subtrackTurn500m})
 		}
 
-		prevJibeTurnPoints := []Point{}
-		prevTackTurnPoints := []Point{}
+		prevTurnJibePoints := []Point{}
+		prevTurnTackPoints := []Point{}
 
 		for i := 1; i < len(ps); i++ {
 			res.totalDistance = res.totalDistance + distance(ps[i-1], ps[i])
@@ -766,31 +769,31 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, windDir
 				res.speed1NM = track1NM
 			}
 			// Determine turn type (jibe or tack) if wind direction is known
-			turnType := UnknownTurn
+			turnType := TurnUnknown
 			if windDir >= 0 && subtrackTurn500m.valid {
 				turnType = detectTurnType(subtrackTurn500m.ps, windDir)
 			}
 
 			// Count jibes and save best alpha
-			if subtrackTurn500m.valid && (turnType == JibeTurn || turnType == UnknownTurn) {
+			if subtrackTurn500m.valid && (turnType == TurnJibe || turnType == TurnUnknown) {
 				if res.alpha500m.speed < subtrackTurn500m.speed {
 					res.alpha500m = subtrackTurn500m
 				}
 				// Only count jibe if there is no overlap by globalIdx with previous jibe subtrack
-				if !overlapByGlobalIdx(prevJibeTurnPoints, subtrackTurn500m.ps) {	
+				if !overlapByGlobalIdx(prevTurnJibePoints, subtrackTurn500m.ps) {
 					res.jibesCount++
-					prevJibeTurnPoints = subtrackTurn500m.ps
+					prevTurnJibePoints = subtrackTurn500m.ps
 				}
 			}
 			// Count tacks and save best delta
-			if subtrackTurn500m.valid && turnType == TackTurn {
+			if subtrackTurn500m.valid && turnType == TurnTack {
 				if res.wDirStats.delta500m.speed < subtrackTurn500m.speed {
 					res.wDirStats.delta500m = subtrackTurn500m
 				}
 				// Only count tack if there is no overlap by globalIdx with previous tack subtrack
-				if !overlapByGlobalIdx(prevTackTurnPoints, subtrackTurn500m.ps) {
+				if !overlapByGlobalIdx(prevTurnTackPoints, subtrackTurn500m.ps) {
 					res.wDirStats.tacksCount++
-					prevTackTurnPoints = subtrackTurn500m.ps
+					prevTurnTackPoints = subtrackTurn500m.ps
 				}
 			}
 			// Save the best starboard stats
@@ -800,10 +803,10 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, windDir
 			if track100m.tackType == StarboardTack && track100m.valid && res.wDirStats.starboardSpeed100m.speed < track100m.speed {
 				res.wDirStats.starboardSpeed100m = track100m
 			}
-			if subtrackTurn500m.tackType == StarboardTack && subtrackTurn500m.valid && (turnType == JibeTurn || turnType == UnknownTurn) && res.wDirStats.starboardAlpha500m.speed < subtrackTurn500m.speed {
+			if subtrackTurn500m.tackType == StarboardTack && subtrackTurn500m.valid && (turnType == TurnJibe || turnType == TurnUnknown) && res.wDirStats.starboardAlpha500m.speed < subtrackTurn500m.speed {
 				res.wDirStats.starboardAlpha500m = subtrackTurn500m
 			}
-			if subtrackTurn500m.tackType == StarboardTack && subtrackTurn500m.valid && turnType == TackTurn && res.wDirStats.starboardDelta500m.speed < subtrackTurn500m.speed {
+			if subtrackTurn500m.tackType == StarboardTack && subtrackTurn500m.valid && turnType == TurnTack && res.wDirStats.starboardDelta500m.speed < subtrackTurn500m.speed {
 				res.wDirStats.starboardDelta500m = subtrackTurn500m
 			}
 			// Save the best port stats
@@ -813,10 +816,10 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, windDir
 			if track100m.tackType == PortTack && track100m.valid && res.wDirStats.portSpeed100m.speed < track100m.speed {
 				res.wDirStats.portSpeed100m = track100m
 			}
-			if subtrackTurn500m.tackType == PortTack && subtrackTurn500m.valid && (turnType == JibeTurn || turnType == UnknownTurn) && res.wDirStats.portAlpha500m.speed < subtrackTurn500m.speed {
+			if subtrackTurn500m.tackType == PortTack && subtrackTurn500m.valid && (turnType == TurnJibe || turnType == TurnUnknown) && res.wDirStats.portAlpha500m.speed < subtrackTurn500m.speed {
 				res.wDirStats.portAlpha500m = subtrackTurn500m
 			}
-			if subtrackTurn500m.tackType == PortTack && subtrackTurn500m.valid && turnType == TackTurn && res.wDirStats.portDelta500m.speed < subtrackTurn500m.speed {
+			if subtrackTurn500m.tackType == PortTack && subtrackTurn500m.valid && turnType == TurnTack && res.wDirStats.portDelta500m.speed < subtrackTurn500m.speed {
 				res.wDirStats.portDelta500m = subtrackTurn500m
 			}
 		}
@@ -934,9 +937,9 @@ func overlapByGlobalIdx(a, b []Point) bool {
 
 // setTackTypeToTracks assigns the tack type to each track based on the wind direction.
 func setTackTypeToTracks(windDir float64, tracks []*Track) {
-    for i := 0; i < len(tracks); i++ {
-        tracks[i].tackType = DetectTackTypeFirstN(*tracks[i], windDir, 2)
-    }
+	for i := 0; i < len(tracks); i++ {
+		tracks[i].tackType = DetectTackTypeFirstN(*tracks[i], windDir, 2)
+	}
 }
 
 // DetectTackTypeFirstN determines the tack type (StarboardTack, PortTack, or UnknownTack)
@@ -982,13 +985,13 @@ func DetectTackTypeFirstN(track Track, windDir float64, n int) TackType {
 // detectTurnType determines the type of sailing maneuver (jibe or tack) based on the track points and wind direction.
 func detectTurnType(ps []Point, windDir float64) TurnType {
 	if len(ps) < 2 {
-		return UnknownTurn
+		return TurnUnknown
 	}
 	downwindPoints := 0
 	upwindPoints := 0
 	for i := 1; i < len(ps); i++ {
 		h := heading(ps[i-1], ps[i])
-		diff := math.Abs(math.Mod(h-windDir+540, 360)-180)
+		diff := math.Abs(math.Mod(h-windDir+540, 360) - 180)
 		if diff > 180 {
 			diff = 360 - diff
 		}
@@ -1002,12 +1005,12 @@ func detectTurnType(ps []Point, windDir float64) TurnType {
 		}
 	}
 	if downwindPoints > upwindPoints {
-		return JibeTurn
+		return TurnJibe
 	}
 	if upwindPoints > downwindPoints {
-		return TackTurn
+		return TurnTack
 	}
-	return UnknownTurn
+	return TurnUnknown
 }
 
 // heading returns heading in degrees from p1 to p2 (0 = North, 90 = East)
@@ -1021,11 +1024,10 @@ func heading(p1, p2 Point) float64 {
 	return math.Mod(brng+360, 360)
 }
 
-
 // AutoDetectWindDir automatically estimates the wind direction based on heading and the preferred maneuver ("jibe" or "tack").
 // The 'prefer' parameter determines the preferred maneuver ("jibe" or "tack"); if not specified or unknown, "jibe" is used as the default value.
 // Returns the estimated wind direction (in degrees, where the wind is coming from)
-func AutoDetectWindDir(ps []Point, prefer string) float64 {
+func AutoDetectWindDir(ps []Point, prefer TurnType) float64 {
 	if len(ps) < 2 {
 		return -1
 	}
@@ -1106,23 +1108,23 @@ func AutoDetectWindDir(ps []Point, prefer string) float64 {
 	// 7. Determine which candidate is correct based on the preferred maneuver
 	jibe1, tack1 := 0, 0
 	jibe2, tack2 := 0, 0
-	prev1 := UnknownTurn
-	prev2 := UnknownTurn
+	prev1 := TurnUnknown
+	prev2 := TurnUnknown
 	for _, h := range selectedHeadings {
 		t1 := detectTurnTypeFromHeading(h, wd1)
 		t2 := detectTurnTypeFromHeading(h, wd2)
-		if t1 != UnknownTurn && prev1 == UnknownTurn {
-			if t1 == JibeTurn {
+		if t1 != TurnUnknown && prev1 == TurnUnknown {
+			if t1 == TurnJibe {
 				jibe1++
-			} else if t1 == TackTurn {
+			} else if t1 == TurnTack {
 				tack1++
 			}
 		}
 		prev1 = t1
-		if t2 != UnknownTurn && prev2 == UnknownTurn {
-			if t2 == JibeTurn {
+		if t2 != TurnUnknown && prev2 == TurnUnknown {
+			if t2 == TurnJibe {
 				jibe2++
-			} else if t2 == TackTurn {
+			} else if t2 == TurnTack {
 				tack2++
 			}
 		}
@@ -1131,7 +1133,7 @@ func AutoDetectWindDir(ps []Point, prefer string) float64 {
 
 	// Determine wd based on preferred maneuver
 	var result float64
-	if prefer == "tack" {
+	if prefer == TurnTack {
 		if tack1 >= tack2 {
 			result = wd1
 		} else {
@@ -1158,7 +1160,7 @@ func detectTurnTypeFromHeading(heading float64, windDir float64) TurnType {
 	}
 	// Tack: near wind direction (within 30 deg)
 	if math.Abs(diff) < 30 {
-		return TackTurn
+		return TurnTack
 	}
 	// Jibe: near downwind (within 30 deg of windDir+180)
 	downwind := math.Mod(windDir+180, 360)
@@ -1167,7 +1169,7 @@ func detectTurnTypeFromHeading(heading float64, windDir float64) TurnType {
 		diffDown = 360 - diffDown
 	}
 	if math.Abs(diffDown) < 30 {
-		return JibeTurn
+		return TurnJibe
 	}
-	return UnknownTurn
+	return TurnUnknown
 }

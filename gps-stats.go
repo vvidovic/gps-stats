@@ -78,6 +78,7 @@ func main() {
 		case "alpha":
 			statType = stats.StatAlpha
 		default:
+			fmt.Printf("Invalid flag value for -t: '%s'.\n", *statTypeFlag)
 			showUsage(2)
 			return
 		}
@@ -91,17 +92,32 @@ func main() {
 		case "ms":
 			speedUnits = stats.UnitsMs
 		default:
+			fmt.Printf("Invalid flag value for -su: '%s'.\n", *speedUnitsFlag)
+			showUsage(3)
+			return
+		}
+
+		autoWindTurn := stats.TurnJibe
+		switch *autoWindDirFlag {
+		case "":
+			autoWindTurn = stats.TurnJibe
+		case "jibe":
+			autoWindTurn = stats.TurnJibe
+		case "tack":
+			autoWindTurn = stats.TurnTack
+		default:
+			fmt.Printf("Invalid flag value for -awd: '%s'.\n", *autoWindDirFlag)
 			showUsage(2)
 			return
 		}
 
 		for i := 0; i < len(flag.Args()); i++ {
-			printStatsForFile(flag.Args()[i], statType, speedUnits, *windDirFlag)
+			printStatsForFile(flag.Args()[i], statType, speedUnits, *windDirFlag, autoWindTurn)
 		}
 	}
 }
 
-func printStatsForFile(filePath string, statType stats.StatFlag, speedUnits stats.UnitsFlag, windDir float64) {
+func printStatsForFile(filePath string, statType stats.StatFlag, speedUnits stats.UnitsFlag, windDir float64, autoWindTurn stats.TurnType) {
 	f, err := os.Open(filePath)
 	if err != nil {
 		return
@@ -131,8 +147,8 @@ func printStatsForFile(filePath string, statType stats.StatFlag, speedUnits stat
 	pointsCleanedNo := len(ps)
 
 	// Auto-detect wind direction if requested
-	if *autoWindDirFlag != "" {
-		windDir = stats.AutoDetectWindDir(ps, *autoWindDirFlag)
+	if autoWindTurn != stats.TurnUnknown {
+		windDir = stats.AutoDetectWindDir(ps, autoWindTurn)
 	}
 
 	if *saveFilteredGpxFlag {
