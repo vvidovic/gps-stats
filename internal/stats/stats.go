@@ -564,6 +564,19 @@ func distSimple(lat1, lon1, lat2, lon2 float64) float64 {
 	return math.Sqrt(sq(dLatM) + sq(dLonM))
 }
 
+// headiheadingSimpleng returns heading in degrees from p1 to p2 (0 = North, 90 = East)
+// ignoring curvature of the earth surface (small distances).
+func headingSimple(lat1, lon1, lat2, lon2 float64) float64 {
+	dLatM := (lat2 - lat1) / 360 * earthCircPoles
+	dLonM := (lon2 - lon1) / 360 * earthCircEquator * math.Cos((lat1+lat2)/2*math.Pi/180)
+
+	// angle in the normal coordinate system (0 = East, 90 = North)
+	angleNormalCoordSys := math.Atan2(dLatM, dLonM) * 180 / math.Pi
+	angle := -angleNormalCoordSys + 90
+
+	return math.Mod(angle+360, 360)
+}
+
 // CleanUp removes points that seems not valid.
 func CleanUp(points Points, deltaSpeedMax float64, speedUnits UnitsFlag) []Point {
 	psCurr := points.Ps
@@ -1015,13 +1028,7 @@ func detectTurnType(ps []Point, windDir float64) TurnType {
 
 // heading returns heading in degrees from p1 to p2 (0 = North, 90 = East)
 func heading(p1, p2 Point) float64 {
-	dLon := (p2.lon - p1.lon) * math.Pi / 180
-	lat1 := p1.lat * math.Pi / 180
-	lat2 := p2.lat * math.Pi / 180
-	y := math.Sin(dLon) * math.Cos(lat2)
-	x := math.Cos(lat1)*math.Sin(lat2) - math.Sin(lat1)*math.Cos(lat2)*math.Cos(dLon)
-	brng := math.Atan2(y, x) * 180 / math.Pi
-	return math.Mod(brng+360, 360)
+	return headingSimple(p1.lat, p1.lon, p2.lat, p2.lon)
 }
 
 // AutoDetectWindDir automatically estimates the wind direction based on heading and the preferred maneuver ("jibe" or "tack").
