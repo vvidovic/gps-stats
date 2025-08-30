@@ -133,16 +133,16 @@ func (t TurnType) String() string {
 type TackType int64
 
 const (
-	UnknownTack TackType = iota
-	StarboardTack
-	PortTack
+	TackUnknown TackType = iota
+	TackStarboard
+	TackPort
 )
 
 func (t TackType) String() string {
 	switch t {
-	case StarboardTack:
+	case TackStarboard:
 		return "starboard"
-	case PortTack:
+	case TackPort:
 		return "port"
 	default:
 		return "unknown"
@@ -170,7 +170,7 @@ func (t Track) TackType() TackType {
 	if len(t.ps) > 0 {
 		return t.ps[0].tackType
 	}
-	return UnknownTack
+	return TackUnknown
 }
 
 // TxtLine display human-readable entry for each track.
@@ -180,7 +180,7 @@ func (t Track) TxtLine() string {
 		timestamp = t.ps[0].ts
 	}
 	tackTypeString := ""
-	if t.TackType() != UnknownTack {
+	if t.TackType() != TackUnknown {
 		tackTypeString = fmt.Sprintf(", %v", t.TackType())
 	}
 	return fmt.Sprintf("%06.3f %s (%0.0f sec, %06.3f m, %v%s)",
@@ -907,29 +907,29 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, windDir
 			}
 
 			// Save the best starboard stats
-			if track2s.TackType() == StarboardTack && track2s.valid && res.wDirStats.starboardSpeed2s.speed < track2s.speed {
+			if track2s.TackType() == TackStarboard && track2s.valid && res.wDirStats.starboardSpeed2s.speed < track2s.speed {
 				res.wDirStats.starboardSpeed2s = track2s
 			}
-			if track100m.TackType() == StarboardTack && track100m.valid && res.wDirStats.starboardSpeed100m.speed < track100m.speed {
+			if track100m.TackType() == TackStarboard && track100m.valid && res.wDirStats.starboardSpeed100m.speed < track100m.speed {
 				res.wDirStats.starboardSpeed100m = track100m
 			}
-			if subtrackTurn500m.TackType() == StarboardTack && subtrackTurn500m.valid && (turnType == TurnJibe || turnType == TurnUnknown) && res.wDirStats.starboardAlpha500m.speed < subtrackTurn500m.speed {
+			if subtrackTurn500m.TackType() == TackStarboard && subtrackTurn500m.valid && (turnType == TurnJibe || turnType == TurnUnknown) && res.wDirStats.starboardAlpha500m.speed < subtrackTurn500m.speed {
 				res.wDirStats.starboardAlpha500m = subtrackTurn500m
 			}
-			if subtrackTurn500m.TackType() == StarboardTack && subtrackTurn500m.valid && turnType == TurnTack && res.wDirStats.starboardDelta500m.speed < subtrackTurn500m.speed {
+			if subtrackTurn500m.TackType() == TackStarboard && subtrackTurn500m.valid && turnType == TurnTack && res.wDirStats.starboardDelta500m.speed < subtrackTurn500m.speed {
 				res.wDirStats.starboardDelta500m = subtrackTurn500m
 			}
 			// Save the best port stats
-			if track2s.TackType() == PortTack && track2s.valid && res.wDirStats.portSpeed2s.speed < track2s.speed {
+			if track2s.TackType() == TackPort && track2s.valid && res.wDirStats.portSpeed2s.speed < track2s.speed {
 				res.wDirStats.portSpeed2s = track2s
 			}
-			if track100m.TackType() == PortTack && track100m.valid && res.wDirStats.portSpeed100m.speed < track100m.speed {
+			if track100m.TackType() == TackPort && track100m.valid && res.wDirStats.portSpeed100m.speed < track100m.speed {
 				res.wDirStats.portSpeed100m = track100m
 			}
-			if subtrackTurn500m.TackType() == PortTack && subtrackTurn500m.valid && (turnType == TurnJibe || turnType == TurnUnknown) && res.wDirStats.portAlpha500m.speed < subtrackTurn500m.speed {
+			if subtrackTurn500m.TackType() == TackPort && subtrackTurn500m.valid && (turnType == TurnJibe || turnType == TurnUnknown) && res.wDirStats.portAlpha500m.speed < subtrackTurn500m.speed {
 				res.wDirStats.portAlpha500m = subtrackTurn500m
 			}
-			if subtrackTurn500m.TackType() == PortTack && subtrackTurn500m.valid && turnType == TurnTack && res.wDirStats.portDelta500m.speed < subtrackTurn500m.speed {
+			if subtrackTurn500m.TackType() == TackPort && subtrackTurn500m.valid && turnType == TurnTack && res.wDirStats.portDelta500m.speed < subtrackTurn500m.speed {
 				res.wDirStats.portDelta500m = subtrackTurn500m
 			}
 		}
@@ -962,14 +962,14 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, windDir
 					ps[i].usedFor10s = false
 				}
 
-				// StarboardTack
+				// TackStarboard
 				for trackIdx := 0; trackIdx < 5; trackIdx++ {
 					bestTrack := Track{speedUnits: speedUnits}
 					track := Track{speedUnits: speedUnits}
 					track = track.addPointMinDurationUnused10s(ps[0], 10, true)
 					for i := 1; i < len(ps); i++ {
 						track = track.addPointMinDurationUnused10s(ps[i], 10, true)
-						if track.valid && track.TackType() == StarboardTack && bestTrack.speed < track.speed {
+						if track.valid && track.TackType() == TackStarboard && bestTrack.speed < track.speed {
 							bestTrack = track
 						}
 					}
@@ -984,14 +984,14 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, windDir
 					ps[i].usedFor10s = false
 				}
 
-				// PortTack
+				// TackPort
 				for trackIdx := 0; trackIdx < 5; trackIdx++ {
 					bestTrack := Track{speedUnits: speedUnits}
 					track := Track{speedUnits: speedUnits}
 					track = track.addPointMinDurationUnused10s(ps[0], 10, true)
 					for i := 1; i < len(ps); i++ {
 						track = track.addPointMinDurationUnused10s(ps[i], 10, true)
-						if track.valid && track.TackType() == PortTack && bestTrack.speed < track.speed {
+						if track.valid && track.TackType() == TackPort && bestTrack.speed < track.speed {
 							bestTrack = track
 						}
 					}
@@ -1041,8 +1041,8 @@ func overlapByGlobalIdx(a, b []Point) bool {
 
 // detectPointHeading determines the direction of movement for the point,
 // compared to the previous point and a tack type
-// (StarboardTack, PortTack, or UnknownTack) relative to the wind direction.
-// If the wind direction is unknown, it returns UnknownTack.
+// (TackStarboard, TackPort, or TackUnknown) relative to the wind direction.
+// If the wind direction is unknown, it returns TackUnknown.
 //
 // Parameters:
 //   - windDir: The wind direction in degrees (from where the wind is coming).
@@ -1051,23 +1051,23 @@ func overlapByGlobalIdx(a, b []Point) bool {
 //
 // Returns:
 //   - A heading angle (North == 0, East == 90).
-//   - A TackType indicating the tack type: StarboardTack, PortTack, or UnknownTack.
+//   - A TackType indicating the tack type: TackStarboard, TackPort, or TackUnknown.
 func detectPointHeading(windDir float64, pPrev, p Point) (float64, TackType) {
 	h := heading(pPrev, p)
 	if windDir < 0 {
-		return h, UnknownTack
+		return h, TackUnknown
 	}
 
 	// Heading relative to wind direction (where the wind is coming from)
 	relHeading := math.Mod(h-windDir+360, 360)
 
 	if relHeading >= 0 && relHeading < 180 {
-		return h, StarboardTack
+		return h, TackStarboard
 	}
 	if relHeading >= 180 && relHeading < 360 {
-		return h, PortTack
+		return h, TackPort
 	}
-	return h, UnknownTack
+	return h, TackUnknown
 }
 
 // detectTurnType determines the type of sailing maneuver (jibe or tack) based on the track points and wind direction.
