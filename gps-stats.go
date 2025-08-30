@@ -100,7 +100,7 @@ func main() {
 		autoWindTurn := stats.TurnJibe
 		switch *autoWindDirFlag {
 		case "":
-			autoWindTurn = stats.TurnJibe
+			autoWindTurn = stats.TurnUnknown
 		case "jibe":
 			autoWindTurn = stats.TurnJibe
 		case "tack":
