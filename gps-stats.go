@@ -21,6 +21,7 @@ var (
 	saveFilteredGpxFlag   *bool
 	windDirFlag           *float64
 	autoWindDirFlag       *string
+	debugFlag             *bool
 )
 
 func main() {
@@ -35,6 +36,7 @@ func main() {
 	saveFilteredGpxFlag = flag.Bool("sf", false, "Save filtered track to a new GPX file")
 	windDirFlag = flag.Float64("wd", -1, "Wind direction in degrees (0-360, degree from where it comes from)")
 	autoWindDirFlag = flag.String("awd", "", "Auto-detect wind direction (optionally specify 'jibe' or 'tack' as the more common maneuver)")
+	debugFlag = flag.Bool("d", false, "Show debug information (each detected turn details)")
 
 	flag.Parse()
 
@@ -118,12 +120,13 @@ func main() {
 		}
 
 		for i := 0; i < len(flag.Args()); i++ {
-			printStatsForFile(flag.Args()[i], statType, speedUnits, *windDirFlag, autoWindTurn)
+			printStatsForFile(flag.Args()[i], statType, speedUnits, *windDirFlag, autoWindTurn, *debugFlag)
 		}
 	}
 }
 
-func printStatsForFile(filePath string, statType stats.StatFlag, speedUnits stats.UnitsFlag, windDir float64, autoWindTurn stats.TurnType) {
+func printStatsForFile(
+	filePath string, statType stats.StatFlag, speedUnits stats.UnitsFlag, windDir float64, autoWindTurn stats.TurnType, debug bool) {
 	f, err := os.Open(filePath)
 	if err != nil {
 		return
@@ -183,7 +186,7 @@ func printStatsForFile(filePath string, statType stats.StatFlag, speedUnits stat
 		}
 	}
 
-	s := stats.CalculateStats(ps, statType, speedUnits, windDir)
+	s := stats.CalculateStats(ps, statType, speedUnits, windDir, debug)
 
 	switch statType {
 	case stats.StatAll:
@@ -226,6 +229,8 @@ func showUsage(exitStatus int) {
 	fmt.Println("       Calculation uses 4 points. It calculates 3 speeds based on those points.")
 	fmt.Println("       After that, 2 speed changes are calculated and difference between those changes is")
 	fmt.Println("       used to filter points.")
+	fmt.Println("")
+	fmt.Println("  -d Show debug information (each detected turn details)")
 	fmt.Println("")
 	fmt.Println("Examples:")
 	fmt.Printf(" %s my_gps_data.SBN\n", os.Args[0])

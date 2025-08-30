@@ -681,10 +681,7 @@ func CleanUp(points Points, deltaSpeedMax float64, speedUnits UnitsFlag) []Point
 }
 
 // CalculateStats calculate statistics from cleaned up points.
-func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, windDir float64) Stats {
-	switch speedUnits {
-	case UnitsMs:
-	}
+func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, windDir float64, debug bool) Stats {
 	res := Stats{speedUnits: speedUnits}
 	res.speed5x10s = append(res.speed5x10s,
 		Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits})
