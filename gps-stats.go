@@ -111,6 +111,12 @@ func main() {
 			return
 		}
 
+		if autoWindTurn != stats.TurnUnknown && *windDirFlag != -1 {
+			fmt.Printf("Invalid flag combination -awd: '%s', -wd: %f (can't set both at the same time).\n", *autoWindDirFlag, *windDirFlag)
+			showUsage(2)
+			return
+		}
+
 		for i := 0; i < len(flag.Args()); i++ {
 			printStatsForFile(flag.Args()[i], statType, speedUnits, *windDirFlag, autoWindTurn)
 		}
