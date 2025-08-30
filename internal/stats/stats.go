@@ -425,18 +425,23 @@ type WindDirectionStats struct {
 
 // Stats constains calculated statistics.
 type Stats struct {
-	totalDistance float64
-	totalDuration float64
-	jibesCount    int
-	speed2s       Track
-	speed5x10s    []Track
-	speed15m      Track
-	speed1h       Track
-	speed100m     Track
-	speed1NM      Track
-	alpha500m     Track
-	speedUnits    UnitsFlag
-	wDirStats     *WindDirectionStats
+	totalDistance  float64
+	totalDuration  float64
+	unknTurnsCount int
+	speed2s        Track
+	speed5x10s     []Track
+	speed15m       Track
+	speed1h        Track
+	speed100m      Track
+	speed1NM       Track
+	alpha500m      Track
+	speedUnits     UnitsFlag
+	wDirKnown      bool
+	wDirStats      WindDirectionStats
+}
+
+func (s Stats) AllTurnsCount() int {
+	return s.unknTurnsCount + s.wDirStats.jibesCount + s.wDirStats.tacksCount
 }
 
 // TxtSingleStat returns a single statistic.
@@ -480,15 +485,18 @@ func (s Stats) TxtStats() string {
 	fmt.Fprintf(&b, "Total Distance:     %06.3f km\n", s.totalDistance/1000)
 	fmt.Fprintf(&b, "Total Duration:     %06.3f h\n", s.totalDuration)
 
-	if s.wDirStats != nil {
+	if s.wDirKnown {
 		fmt.Fprintf(&b, "Wind Direction:     %06.3f\n", s.wDirStats.windDirection)
+	} else {
+		fmt.Fprintf(&b, "Wind Dir +/- 180°:  %06.3f\n", s.wDirStats.windDirection)
 	}
 
-	if s.wDirStats != nil {
+	if s.wDirKnown {
+		fmt.Fprintf(&b, "Unkn turns Count:   %d\n", s.unknTurnsCount)
 		fmt.Fprintf(&b, "Jibes Count:        %d\n", s.wDirStats.jibesCount)
 		fmt.Fprintf(&b, "Tacks Count:        %d\n", s.wDirStats.tacksCount)
 	} else {
-		fmt.Fprintf(&b, "Jibes Count:        %d\n", s.jibesCount)
+		fmt.Fprintf(&b, "Turns Count:        %d\n", s.unknTurnsCount+s.wDirStats.jibesCount+s.wDirStats.tacksCount)
 	}
 
 	fmt.Fprintf(&b, "2 Second Peak:      %s\n", s.speed2s.TxtLine())
@@ -504,7 +512,7 @@ func (s Stats) TxtStats() string {
 	fmt.Fprintf(&b, "Nautical Mile:      %s\n", s.speed1NM.TxtLine())
 	fmt.Fprintf(&b, "Alpha 500:          %s\n", s.alpha500m.TxtLine())
 
-	if s.wDirStats != nil {
+	if s.wDirKnown {
 		fmt.Fprintf(&b, "Delta 500:          %s\n", s.wDirStats.delta500m.TxtLine())
 		fmt.Fprintf(&b, "\n")
 		fmt.Fprintf(&b, "Starboard 2s:       %s\n", s.wDirStats.starboardSpeed2s.TxtLine())
@@ -615,16 +623,16 @@ func sq(n float64) float64 {
 	return n * n
 }
 
-// dist calculate a distance between two points by their lattitudes and
-// longitudes.
-func dist(lat1, lon1, lat2, lon2 float64) float64 {
-	dLat := (lat2 - lat1) * math.Pi / 180
-	dLon := (lon2 - lon1) * math.Pi / 180
-	a := sq(math.Sin(dLat/2)) +
-		math.Cos(lat1*math.Pi/180)*math.Cos(lat2*math.Pi/180)*sq(math.Sin(dLon/2))
-	c := 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
-	return earthRadius * c
-}
+// // dist calculate a distance between two points by their lattitudes and
+// // longitudes.
+// func dist(lat1, lon1, lat2, lon2 float64) float64 {
+// 	dLat := (lat2 - lat1) * math.Pi / 180
+// 	dLon := (lon2 - lon1) * math.Pi / 180
+// 	a := sq(math.Sin(dLat/2)) +
+// 		math.Cos(lat1*math.Pi/180)*math.Cos(lat2*math.Pi/180)*sq(math.Sin(dLon/2))
+// 	c := 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
+// 	return earthRadius * c
+// }
 
 // distSimple calculate a distance between two points by their lattitudes and
 // longitudes, ignoring curvature of the earth surface (small distances).
@@ -640,6 +648,12 @@ func distSimple(lat1, lon1, lat2, lon2 float64) float64 {
 func headingSimple(lat1, lon1, lat2, lon2 float64) float64 {
 	dLatM := (lat2 - lat1) / 360 * earthCircPoles
 	dLonM := (lon2 - lon1) / 360 * earthCircEquator * math.Cos((lat1+lat2)/2*math.Pi/180)
+
+	// If distance between 2 points is small, heading is unknown.
+	d := math.Sqrt(sq(dLatM) + sq(dLonM))
+	if d < 0.5 {
+		return -1
+	}
 
 	// angle in the normal coordinate system (0 = East, 90 = North)
 	angleNormalCoordSys := math.Atan2(dLatM, dLonM) * 180 / math.Pi
@@ -754,19 +768,22 @@ func CleanUp(points Points, deltaSpeedMax float64, speedUnits UnitsFlag) []Point
 
 // CalculateStats calculate statistics from cleaned up points.
 func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, windDir float64, debug bool) Stats {
-	res := Stats{speedUnits: speedUnits}
+	res := Stats{speedUnits: speedUnits, wDirKnown: windDir >= 0}
 	res.speed5x10s = append(res.speed5x10s,
 		Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits})
-	res.jibesCount = 0
-	if windDir > 0 {
-		res.wDirStats = &WindDirectionStats{}
-		res.wDirStats.windDirection = windDir
-		res.wDirStats.tacksCount = 0
-		res.wDirStats.starboardSpeed5x10s = append(res.wDirStats.starboardSpeed5x10s,
-			Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits})
-		res.wDirStats.portSpeed5x10s = append(res.wDirStats.portSpeed5x10s,
-			Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits})
-	}
+	res.unknTurnsCount = 0
+
+	// If wind directio is know known, calculate it based on assumption that favorite turn is jibe.
+	// Makes turn detection more precise.
+	windDir = AutoDetectWindDir(ps, TurnJibe)
+	// Initialize wind dir statistics, even for assumed wind direction.
+	res.wDirStats.windDirection = windDir
+	res.wDirStats.tacksCount = 0
+	res.wDirStats.starboardSpeed5x10s = append(res.wDirStats.starboardSpeed5x10s,
+		Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits})
+	res.wDirStats.portSpeed5x10s = append(res.wDirStats.portSpeed5x10s,
+		Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits})
+
 	if len(ps) > 1 {
 		track2s := Track{speedUnits: speedUnits}
 		track15m := Track{speedUnits: speedUnits}
@@ -803,7 +820,7 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, windDir
 		// fmt.Printf("wind dir: %.3f\n", windDir)
 		for i := 1; i < len(ps); i++ {
 			ps[i].heading, ps[i].tackType = detectPointHeading(windDir, ps[i-1], ps[i])
-			// fmt.Printf("====> p[%d] (%s), h: %.3f, tt: %s, speed: %.2f\n", i, ps[i].ts, ps[i].heading, ps[i].tackType, *ps[i].speed)
+			// fmt.Printf("====> p[%d] (%s), h: %.3f, wd(%v): %.2f, tt: %s, speed: %.2f\n", i, ps[i].ts, ps[i].heading, res.wDirKnown, windDir, ps[i].tackType, *ps[i].speed)
 		}
 
 		for i := 1; i < len(ps); i++ {
@@ -848,9 +865,9 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, windDir
 			if track1NM.valid && res.speed1NM.speed < track1NM.speed {
 				res.speed1NM = track1NM
 			}
-			// Determine turn type (jibe or tack) if wind direction is known
+			// Determine turn type (jibe or tack), use known or assumed wind direction.
 			turnType := TurnUnknown
-			if windDir >= 0 && subtrackTurn500m.valid {
+			if subtrackTurn500m.valid {
 				turnType = detectTurnType(subtrackTurn500m.ps, windDir)
 			}
 
@@ -884,7 +901,7 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, windDir
 
 						switch turnType {
 						case TurnUnknown:
-							res.jibesCount++
+							res.unknTurnsCount++
 							prevTurnPoints = subtrackTurn500m.ps
 						}
 					}
@@ -956,7 +973,7 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, windDir
 			}
 
 			// Fill starboardSpeed5x10s and portSpeed5x10s with best 5x10s tracks for each tack type
-			if res.wDirStats != nil {
+			if res.wDirKnown {
 				// Reset usedFor10s for all points before per-tack search
 				for i := range ps {
 					ps[i].usedFor10s = false
@@ -1045,6 +1062,7 @@ func overlapByGlobalIdx(a, b []Point) bool {
 // If the wind direction is unknown, it returns TackUnknown.
 //
 // Parameters:
+//   - wDirKnow: If wind direction is known..
 //   - windDir: The wind direction in degrees (from where the wind is coming).
 //   - pPrev: The previous GPS point.
 //   - p: The current GPS point for which we detect TackType.
@@ -1054,7 +1072,8 @@ func overlapByGlobalIdx(a, b []Point) bool {
 //   - A TackType indicating the tack type: TackStarboard, TackPort, or TackUnknown.
 func detectPointHeading(windDir float64, pPrev, p Point) (float64, TackType) {
 	h := heading(pPrev, p)
-	if windDir < 0 {
+	// If we don't know wind direction or heading (ride direction), return TackUnknown.
+	if windDir < 0 || h < 0 {
 		return h, TackUnknown
 	}
 
