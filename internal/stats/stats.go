@@ -1111,29 +1111,40 @@ func detectTurnType(ps []Point, windDir float64) TurnType {
 	if len(ps) < 2 {
 		return TurnUnknown
 	}
-	downwindPoints := 0
-	upwindPoints := 0
-	for i := 1; i < len(ps); i++ {
-		h := heading(ps[i-1], ps[i])
-		diff := angleDiff(h, windDir)
-		if diff > 180 {
-			diff = 360 - diff
+
+	// Find last point on initial tack side and the first point on the oposite side tack.
+	pStartTurn := Point{}
+	pEndTurn := Point{}
+	for i := 0; i < len(ps); i++ {
+		p := ps[i]
+		if p.tackSide != TackUnknown {
+			if pStartTurn.tackSide == TackUnknown {
+				// Set the start point to the first one with defined tack.
+				pStartTurn = p
+			} else if pStartTurn.tackSide == p.tackSide {
+				// Update the start point to the last one with the same tack.
+				pStartTurn = p
+			} else if pEndTurn.tackSide == TackUnknown {
+				// Set the end point to the first one with the opposite tack.
+				pEndTurn = p
+				break
+			}
 		}
-		// Downwind (jibe): heading near wind direction (~30 degrees)
-		if diff < 30 {
-			downwindPoints++
-		}
-		// Upwind (tack): heading near into the wind (~30 degrees)
-		if 180-diff < 30 {
-			upwindPoints++
-		}
-		// fmt.Printf("====> h: %.2f, wd: %.2f, diff: %.2f\n", h, windDir, diff)
 	}
-	// fmt.Printf("====> wd: %.2f, u/d: %d/%d\n", windDir, upwindPoints, downwindPoints)
-	if downwindPoints > upwindPoints {
+
+	// Find if the direction from the first turn point to
+	// the last turn point is downwind or upwind.
+	h := heading(pStartTurn, pEndTurn)
+	diff := angleDiff(h, windDir)
+	if diff > 180 {
+		diff = 360 - diff
+	}
+	// Downwind (jibe): heading approximately down the wind direction
+	if diff < 90 {
 		return TurnJibe
 	}
-	if upwindPoints > downwindPoints {
+	// Upwind (tack): heading approximately into the wind direction
+	if 180-diff < 90 {
 		return TurnTack
 	}
 	return TurnUnknown
