@@ -197,8 +197,7 @@ func (t Track) String() string {
 }
 
 // reCalculate sums durations and distanes from points and calculates
-//
-//	speed from those.
+// speed from those.
 func (t Track) reCalculate() Track {
 	t.duration = 0
 	t.distance = 0
@@ -649,18 +648,21 @@ func headingSimple(lat1, lon1, lat2, lon2 float64) float64 {
 	dLatM := (lat2 - lat1) / 360 * earthCircPoles
 	dLonM := (lon2 - lon1) / 360 * earthCircEquator * math.Cos((lat1+lat2)/2*math.Pi/180)
 
+	dist := math.Sqrt(sq(dLatM) + sq(dLonM))
+
+	heading := -1.0
 	// If distance between 2 points is small, heading is unknown.
-	d := math.Sqrt(sq(dLatM) + sq(dLonM))
-	if d < 0.5 {
-		return -1
+	if dist > 0.5 {
+		// angle in the normal coordinate system (0 = East, 90 = North)
+		angleNormalCoordSys := math.Atan2(dLatM, dLonM) * 180 / math.Pi
+		angle := -angleNormalCoordSys + 90
+		// fmt.Printf("dLonM: %.3f, dLatM: %.3f, an: %.3f, ah: %.3f\n", dLonM, dLatM, angleNormalCoordSys, angle)
+
+		heading = math.Mod(angle+360, 360)
 	}
+	// fmt.Printf("  ====> dist: %.2f (%.2f, %.2f), heading: %.2f\n", d, dLatM, dLonM, heading)
 
-	// angle in the normal coordinate system (0 = East, 90 = North)
-	angleNormalCoordSys := math.Atan2(dLatM, dLonM) * 180 / math.Pi
-	angle := -angleNormalCoordSys + 90
-	// fmt.Printf("dLonM: %.3f, dLatM: %.3f, an: %.3f, ah: %.3f\n", dLonM, dLatM, angleNormalCoordSys, angle)
-
-	return math.Mod(angle+360, 360)
+	return heading
 }
 
 // CleanUp removes points that seems not valid.
