@@ -896,7 +896,7 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, windDir
 					if !overlapByGlobalIdx(prevTurnPoints, subtrackTurn500m.ps) {
 						prevTurnPoints = subtrackTurn500m.ps
 						if debug {
-							fmt.Printf("turn (%s): %s", turnType, subtrackTurn500m)
+							fmt.Printf("%s turn (%-9s): %s", turnType, subtrackTurn500m.TackType(), subtrackTurn500m)
 						}
 
 						switch turnType {
@@ -910,7 +910,7 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, windDir
 					if len(prevTurnPoints) == 0 || prevTurnPoints[0].tackType != subtrackTurn500m.TackType() || !overlapByGlobalIdx(prevTurnPoints, subtrackTurn500m.ps) {
 						prevTurnPoints = subtrackTurn500m.ps
 						if debug {
-							fmt.Printf("turn (%s): %s", turnType, subtrackTurn500m)
+							fmt.Printf("%s turn (%-9s): %s", turnType, subtrackTurn500m.TackType(), subtrackTurn500m)
 						}
 
 						switch turnType {
