@@ -308,8 +308,9 @@ func (t Track) addPointTurn500(p Point) (Track, Track) {
 //     (as described above)
 func (t Track) addPointTurnMaxDistance(p Point,
 	maxDistance, minDistance, gateSize float64) (Track, Track) {
-	// Don't add static points (no heading) to the beginning of track.
-	if p.heading < 0 {
+	// Don't add static or near upwind/downwind points (no heading)
+	// to the beginning of track.
+	if len(t.ps) == 0 && p.heading < 0 {
 		return t, Track{speedUnits: t.speedUnits}
 	}
 
@@ -364,18 +365,18 @@ func (t Track) addPointTurnMaxDistance(p Point,
 					newFirstPointIdx := 0
 					// Skip and remove all points with same orientation heading
 					deltaHeadingJ := 0.0
-					for j := 0; j < len(t.ps) && deltaHeadingJ <= 90; j++ {
+					for j := 0; j < l && deltaHeadingJ <= 90; j++ {
 						deltaHeadingJ = angleDiff(currHeading, t.ps[j].heading)
 						newFirstPointIdx = j
 					}
 					t.ps = t.ps[newFirstPointIdx:]
+					l = len(t.ps)
 
 					t.distance = 0
-					for j := 1; j < len(t.ps)-1; j++ {
+					for j := 1; j < l-1; j++ {
 						t.distance = t.distance + distance(t.ps[j-1], t.ps[j])
 					}
-					t.duration = t.ps[len(t.ps)-1].ts.Sub(t.ps[0].ts).Seconds()
-					l = len(t.ps)
+					t.duration = t.ps[l-1].ts.Sub(t.ps[0].ts).Seconds()
 					break
 				}
 			}
@@ -390,10 +391,16 @@ func (t Track) addPointTurnMaxDistance(p Point,
 			if subtrackDistance < minDistance {
 				break
 			}
+			// The first point must be on the clear tack (not near upwind/downwind)
+			if t.ps[i].tackType == TackUnknown {
+				subtrackDistance = subtrackDistance - distance(t.ps[i], t.ps[i+1])
+				continue
+			}
 			gateDistance := distance(t.ps[i], t.ps[l-1])
 			if gateDistance <= gateSize && subtrackDistance >= minDistance {
-				// fmt.Printf("  ====> gate dist: %.2f (max: %.2f)\n", gateDistance, gateSize)
+				// fmt.Printf("  ====> gate dist: %.2f (max: %.2f), subtrackDistance: %.2f (min: %.2f), %s - %s\n", gateDistance, gateSize, subtrackDistance, minDistance, t.ps[i].ts, t.ps[l-1].ts)
 				subtrack := Track{ps: t.ps[i:], valid: true, speedUnits: t.speedUnits}.reCalculate()
+				// fmt.Printf("    ====> real - gate dist: %.2f, subtrackDistance: %.2f\n", distance(subtrack.ps[0], subtrack.ps[len(subtrack.ps)-1]), subtrack.distance)
 				return t, subtrack
 			}
 			subtrackDistance = subtrackDistance - distance(t.ps[i], t.ps[i+1])
@@ -819,6 +826,7 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, windDir
 
 		prevTurnPoints := []Point{}
 
+		// Calculate heading and tackSide for each point.
 		// fmt.Printf("wind dir: %.3f\n", windDir)
 		for i := 1; i < len(ps); i++ {
 			ps[i].heading, ps[i].tackType = detectPointHeading(windDir, ps[i-1], ps[i])
@@ -848,7 +856,7 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, windDir
 			case StatAlpha:
 				trackTurn500m, subtrackTurn500m = trackTurn500m.addPointTurn500(ps[i])
 			}
-			// fmt.Printf(" ===> t: %v, st: %v, valid: %v\n", trackTurn500m, subtrackTurn500m, subtrackTurn500m.valid)
+			// fmt.Printf(" ===> %4d (%s): t: %v, st: %v, valid: %v\n", i, ps[i].ts, trackTurn500m, subtrackTurn500m, subtrackTurn500m.valid)
 
 			// If any of calculated statistics is prepared (valid) and the statistic
 			//   is a highest one, save it.
