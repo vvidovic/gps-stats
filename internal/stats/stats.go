@@ -295,7 +295,7 @@ func (t Track) addPointMinDistance(p Point, minDistance float64) Track {
 //   - return two Tracks: "this" Track and subtrack containing best alpha
 //     (as described above)
 func (t Track) addPointTurn500(p Point) (Track, Track) {
-	return t.addPointTurnMaxDistance(p, 500, 100, 50)
+	return t.addPointTurnMaxDistance(p, 500, 10, 50)
 }
 
 // addPointTurnMaxDistance
@@ -319,15 +319,17 @@ func (t Track) addPointTurnMaxDistance(p Point,
 	t.ps = append(t.ps, p)
 	l := len(t.ps)
 	if l > 1 {
+		firstPointTackSide := t.ps[0].tackSide
 		t.duration = t.duration + t.ps[l-1].ts.Sub(t.ps[l-2].ts).Seconds()
 		t.distance = t.distance + distance(t.ps[l-2], t.ps[l-1])
 
 		// 1. Do we need to remove some points from the start of this track
 		//    because the track is too long?
 		//    - find a track with length most close to the maxDistance
+		//      and ensure the first point has a known tack side
 		if t.distance > maxDistance && l > 2 {
 			distTest := t.distance - distance(t.ps[0], t.ps[1])
-			for distTest > maxDistance && l > 2 {
+			for distTest > maxDistance && l > 2 && t.ps[0].tackSide != TackUnknown {
 				t.distance = distTest
 				t.duration = t.duration - t.ps[1].ts.Sub(t.ps[0].ts).Seconds()
 				t.ps = t.ps[1:]
@@ -340,72 +342,46 @@ func (t Track) addPointTurnMaxDistance(p Point,
 			l = len(t.ps)
 		}
 
-		// 2. Do we need to remove some points from the start of this track
-		//    because the change of heading (ride direction) to avoid multiple
-		//    turns in the same track?
-		//    - find heading changes compared to the first track point,
-		//      must be at most 1 heading change in the track
-		headingChangeCount := 0
-		prevHeading := t.ps[0].heading
-		// fmt.Printf("len: %d\n", len(t.ps))
-		for i := 1; i < len(t.ps); i++ {
-			currHeading := t.ps[i].heading
-			if currHeading < 0 {
-				// Skip static points without heading
-				// fmt.Printf("%d - skip curr: %.2f\n", i, currHeading)
-			} else if prevHeading < 0 {
-				// fmt.Printf("%d - set priv (%.2f) to curr (%.2f)\n", i, prevHeading, currHeading)
-				prevHeading = currHeading
-			} else {
-				deltaHeading := angleDiff(prevHeading, currHeading)
-				if deltaHeading > 90 {
-					headingChangeCount += 1
-					// fmt.Printf("%d - headingChangeCount: %d, prev/curr: %.2f/%.2f, ch: %.2f, p: %v\n", i, headingChangeCount, prevHeading, currHeading, deltaHeading, t.ps[i])
-					prevHeading = currHeading
-				}
-				if headingChangeCount > 1 {
-					newFirstPointIdx := 0
-					// Skip and remove all points with same orientation heading
-					deltaHeadingJ := 0.0
-					for j := 0; j < l && deltaHeadingJ <= 90; j++ {
-						deltaHeadingJ = angleDiff(currHeading, t.ps[j].heading)
-						newFirstPointIdx = j
-					}
-					t.ps = t.ps[newFirstPointIdx:]
-					l = len(t.ps)
+		// 2. The last point must be the opposite tack side
+		// from the first point tack side.
+		lastPointTackSide := t.ps[l-1].tackSide
+		for lastPointTackSide == TackUnknown && l > 2 {
+			t.ps = t.ps[0 : l-1]
+			l--
+			lastPointTackSide = t.ps[l-1].tackSide
+		}
 
-					t.distance = 0
-					for j := 1; j < l-1; j++ {
-						t.distance = t.distance + distance(t.ps[j-1], t.ps[j])
-					}
-					t.duration = t.ps[l-1].ts.Sub(t.ps[0].ts).Seconds()
+		// 3. Ensure that we did change direction
+		if lastPointTackSide != TackUnknown && lastPointTackSide != firstPointTackSide {
+			// fmt.Printf("  ====> whole track (firstPointTackSide: %v): %v", firstPointTackSide, t)
+			// 4. Can we find a gate, maybe by removing some points from the start?
+			// Distance between the first and the last point must be max gateSize (50m).
+			subtrackDistance := t.distance
+			for i := 0; i < l-2; i++ {
+				// fmt.Printf("  ====> subt dist: %.2f (min: %.2f), p: %v\n", subtrackDistance, minDistance, t.ps[i])
+				if subtrackDistance < minDistance {
 					break
 				}
-			}
-		}
-		// if math.Abs(t.ps[0].heading-p.heading) > 90 {
-
-		// 3. Can we find a gate, maybe by removing some points from the start?
-		// Distance between the first and the last point must be max gateSize (50m).
-		subtrackDistance := t.distance
-		for i := 0; i < l-2; i++ {
-			// fmt.Printf("  ====> subt dist: %.2f (min: %.2f), p: %v\n", subtrackDistance, minDistance, t.ps[i])
-			if subtrackDistance < minDistance {
-				break
-			}
-			// The first point must be on the clear tack (not near upwind/downwind)
-			if t.ps[i].tackSide == TackUnknown {
+				// The first point of the subrack must be on the same tack as the first point of the whole track.
+				if t.ps[i].tackSide != firstPointTackSide {
+					break
+				}
+				// The first point must be on the clear tack (not near upwind/downwind).
+				if t.ps[i].tackSide == TackUnknown {
+					subtrackDistance = subtrackDistance - distance(t.ps[i], t.ps[i+1])
+					continue
+				}
+				gateDistance := distance(t.ps[i], t.ps[l-1])
+				// fmt.Printf("    ====> ? gate dist: %.2f (max: %.2f), subtrackDistance: %.2f (min: %.2f), %s - %s\n", gateDistance, gateSize, subtrackDistance, minDistance, t.ps[i].ts, t.ps[l-1].ts)
+				if gateDistance <= gateSize && subtrackDistance >= minDistance {
+					// fmt.Printf("    ====> ! gate dist: %.2f (max: %.2f), subtrackDistance: %.2f (min: %.2f), %s - %s\n", gateDistance, gateSize, subtrackDistance, minDistance, t.ps[i].ts, t.ps[l-1].ts)
+					// fmt.Printf("    ====> gate dist: %.2f (max: %.2f), subtrackDistance: %.2f (min: %.2f), %s - %s\n", gateDistance, gateSize, subtrackDistance, minDistance, t.ps[i].ts, t.ps[l-1].ts)
+					subtrack := Track{ps: t.ps[i:], valid: true, speedUnits: t.speedUnits}.reCalculate()
+					// fmt.Printf("    ====> real - gate dist: %.2f, subtrackDistance: %.2f\n", distance(subtrack.ps[0], subtrack.ps[len(subtrack.ps)-1]), subtrack.distance)
+					return t, subtrack
+				}
 				subtrackDistance = subtrackDistance - distance(t.ps[i], t.ps[i+1])
-				continue
 			}
-			gateDistance := distance(t.ps[i], t.ps[l-1])
-			if gateDistance <= gateSize && subtrackDistance >= minDistance {
-				// fmt.Printf("  ====> gate dist: %.2f (max: %.2f), subtrackDistance: %.2f (min: %.2f), %s - %s\n", gateDistance, gateSize, subtrackDistance, minDistance, t.ps[i].ts, t.ps[l-1].ts)
-				subtrack := Track{ps: t.ps[i:], valid: true, speedUnits: t.speedUnits}.reCalculate()
-				// fmt.Printf("    ====> real - gate dist: %.2f, subtrackDistance: %.2f\n", distance(subtrack.ps[0], subtrack.ps[len(subtrack.ps)-1]), subtrack.distance)
-				return t, subtrack
-			}
-			subtrackDistance = subtrackDistance - distance(t.ps[i], t.ps[i+1])
 		}
 	}
 
@@ -779,6 +755,13 @@ func CleanUp(points Points, deltaSpeedMax float64, speedUnits UnitsFlag) []Point
 
 // CalculateStats calculate statistics from cleaned up points.
 func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, windDir float64, debug bool) Stats {
+	// Calculate heading and tackSide for each point.
+	// fmt.Printf("wind dir: %.3f\n", windDir)
+	for i := 1; i < len(ps); i++ {
+		ps[i].heading, ps[i].tackSide = detectPointHeading(windDir, ps[i-1], ps[i])
+		// fmt.Printf("====> p[%d] (%s), h: %.3f, tt: %s, speed: %.2f\n", i, ps[i].ts, ps[i].heading, ps[i].tackSide, *ps[i].speed)
+	}
+
 	res := Stats{speedUnits: speedUnits, wDirKnown: windDir >= 0}
 	res.speed5x10s = append(res.speed5x10s,
 		Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits})
@@ -796,13 +779,13 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, windDir
 		Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits})
 
 	if len(ps) > 1 {
+		res.totalDuration = ps[len(ps)-1].ts.Sub(ps[0].ts).Hours()
+
 		track2s := Track{speedUnits: speedUnits}
 		track15m := Track{speedUnits: speedUnits}
 		track1h := Track{speedUnits: speedUnits}
 		track100m := Track{speedUnits: speedUnits}
 		track1NM := Track{speedUnits: speedUnits}
-		trackTurn500m := Track{speedUnits: speedUnits}
-		subtrackTurn500m := Track{speedUnits: speedUnits}
 
 		switch statType {
 		case StatAll:
@@ -811,7 +794,6 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, windDir
 			track1h = track1h.addPointMinDuration(ps[0], 3600)
 			track100m = track100m.addPointMinDistance(ps[0], 100)
 			track1NM = track1NM.addPointMinDistance(ps[0], 1852)
-			trackTurn500m, subtrackTurn500m = trackTurn500m.addPointTurn500(ps[0])
 		case Stat2s:
 			track2s = track2s.addPointMinDuration(ps[0], 2)
 		case Stat15m:
@@ -822,19 +804,9 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, windDir
 			track100m = track100m.addPointMinDistance(ps[0], 100)
 		case Stat1nm:
 			track1NM = track1NM.addPointMinDistance(ps[0], 1852)
-		case StatAlpha:
-			trackTurn500m, subtrackTurn500m = trackTurn500m.addPointTurn500(ps[0])
 		}
 
-		prevTurnPoints := []Point{}
-
-		// Calculate heading and tackSide for each point.
-		// fmt.Printf("wind dir: %.3f\n", windDir)
-		for i := 1; i < len(ps); i++ {
-			ps[i].heading, ps[i].tackSide = detectPointHeading(windDir, ps[i-1], ps[i])
-			// fmt.Printf("====> p[%d] (%s), h: %.3f, wd(%v): %.2f, tt: %s, speed: %.2f\n", i, ps[i].ts, ps[i].heading, res.wDirKnown, windDir, ps[i].tackSide, *ps[i].speed)
-		}
-
+		// Calculate statistics for all values except turns and 5x10.
 		for i := 1; i < len(ps); i++ {
 			res.totalDistance = res.totalDistance + distance(ps[i-1], ps[i])
 			switch statType {
@@ -844,7 +816,6 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, windDir
 				track1h = track1h.addPointMinDuration(ps[i], 3600)
 				track100m = track100m.addPointMinDistance(ps[i], 100)
 				track1NM = track1NM.addPointMinDistance(ps[i], 1852)
-				trackTurn500m, subtrackTurn500m = trackTurn500m.addPointTurn500(ps[i])
 			case Stat2s:
 				track2s = track2s.addPointMinDuration(ps[i], 2)
 			case Stat15m:
@@ -855,8 +826,6 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, windDir
 				track100m = track100m.addPointMinDistance(ps[i], 100)
 			case Stat1nm:
 				track1NM = track1NM.addPointMinDistance(ps[i], 1852)
-			case StatAlpha:
-				trackTurn500m, subtrackTurn500m = trackTurn500m.addPointTurn500(ps[i])
 			}
 			// fmt.Printf(" ===> %4d (%s): t: %v, st: %v, valid: %v\n", i, ps[i].ts, trackTurn500m, subtrackTurn500m, subtrackTurn500m.valid)
 
@@ -877,63 +846,6 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, windDir
 			if track1NM.valid && res.speed1NM.speed < track1NM.speed {
 				res.speed1NM = track1NM
 			}
-			// Determine turn type (jibe or tack), use known or assumed wind direction.
-			turnType := TurnUnknown
-			if subtrackTurn500m.valid {
-				turnType = detectTurnType(subtrackTurn500m.ps, windDir)
-			}
-
-			if subtrackTurn500m.valid {
-				// if len(prevTurnPoints) > 0 {
-				// 	fmt.Printf(" ---> tack side: %s, prev tt: %s, st: %v\n", subtrackTurn500m.TackSide(), prevTurnPoints[0].tackSide, subtrackTurn500m)
-				// }
-				switch turnType {
-				case TurnUnknown:
-					if res.alpha500m.speed < subtrackTurn500m.speed {
-						res.alpha500m = subtrackTurn500m
-					}
-				case TurnJibe:
-					if res.wDirStats.alpha500m.speed < subtrackTurn500m.speed {
-						res.wDirStats.alpha500m = subtrackTurn500m
-					}
-				case TurnTack:
-					if res.wDirStats.delta500m.speed < subtrackTurn500m.speed {
-						res.wDirStats.delta500m = subtrackTurn500m
-					}
-				}
-
-				switch turnType {
-				case TurnUnknown:
-					// Only count tack if there is no overlap by globalIdx with previous turn subtrack
-					if !overlapByGlobalIdx(prevTurnPoints, subtrackTurn500m.ps) {
-						prevTurnPoints = subtrackTurn500m.ps
-						if debug {
-							fmt.Printf("%s turn (%-9s): %s", turnType, subtrackTurn500m.TackSide(), subtrackTurn500m)
-						}
-
-						switch turnType {
-						case TurnUnknown:
-							res.unknTurnsCount++
-							prevTurnPoints = subtrackTurn500m.ps
-						}
-					}
-				case TurnJibe, TurnTack:
-					// Only count turn if there is change of direction
-					if len(prevTurnPoints) == 0 || prevTurnPoints[0].tackSide != subtrackTurn500m.TackSide() || !overlapByGlobalIdx(prevTurnPoints, subtrackTurn500m.ps) {
-						prevTurnPoints = subtrackTurn500m.ps
-						if debug {
-							fmt.Printf("%s turn (%-9s): %s", turnType, subtrackTurn500m.TackSide(), subtrackTurn500m)
-						}
-
-						switch turnType {
-						case TurnJibe:
-							res.wDirStats.jibesCount++
-						case TurnTack:
-							res.wDirStats.tacksCount++
-						}
-					}
-				}
-			}
 
 			// Save the best starboard stats
 			if track2s.TackSide() == TackStarboard && track2s.valid && res.wDirStats.starboardSpeed2s.speed < track2s.speed {
@@ -942,12 +854,6 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, windDir
 			if track100m.TackSide() == TackStarboard && track100m.valid && res.wDirStats.starboardSpeed100m.speed < track100m.speed {
 				res.wDirStats.starboardSpeed100m = track100m
 			}
-			if subtrackTurn500m.TackSide() == TackStarboard && subtrackTurn500m.valid && (turnType == TurnJibe || turnType == TurnUnknown) && res.wDirStats.starboardAlpha500m.speed < subtrackTurn500m.speed {
-				res.wDirStats.starboardAlpha500m = subtrackTurn500m
-			}
-			if subtrackTurn500m.TackSide() == TackStarboard && subtrackTurn500m.valid && turnType == TurnTack && res.wDirStats.starboardDelta500m.speed < subtrackTurn500m.speed {
-				res.wDirStats.starboardDelta500m = subtrackTurn500m
-			}
 			// Save the best port stats
 			if track2s.TackSide() == TackPort && track2s.valid && res.wDirStats.portSpeed2s.speed < track2s.speed {
 				res.wDirStats.portSpeed2s = track2s
@@ -955,15 +861,77 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, windDir
 			if track100m.TackSide() == TackPort && track100m.valid && res.wDirStats.portSpeed100m.speed < track100m.speed {
 				res.wDirStats.portSpeed100m = track100m
 			}
-			if subtrackTurn500m.TackSide() == TackPort && subtrackTurn500m.valid && (turnType == TurnJibe || turnType == TurnUnknown) && res.wDirStats.portAlpha500m.speed < subtrackTurn500m.speed {
-				res.wDirStats.portAlpha500m = subtrackTurn500m
-			}
-			if subtrackTurn500m.TackSide() == TackPort && subtrackTurn500m.valid && turnType == TurnTack && res.wDirStats.portDelta500m.speed < subtrackTurn500m.speed {
-				res.wDirStats.portDelta500m = subtrackTurn500m
-			}
 		}
 
-		res.totalDuration = ps[len(ps)-1].ts.Sub(ps[0].ts).Hours()
+		// Calculate turn statistics
+		switch statType {
+		case StatAll, StatAlpha:
+			// Get all track segments with exactly 1 turn (2 tack, 2 riding sides)
+			turnTracks := collectTurnTracks(ps, speedUnits)
+			// fmt.Printf("====> turnTracks len: %d\n\n", len(turnTracks))
+
+			for ttIdx := 0; ttIdx < len(turnTracks); ttIdx++ {
+				turnTrack := turnTracks[ttIdx]
+				// fmt.Printf("====> turnTracks[%d]: %s", ttIdx, turnTrack)
+				turnSubtrack := findMaxTurnSubtrack(turnTrack, speedUnits)
+				// fmt.Printf("====> turnTracks[%d] valid: %v: tt: %s st: %v", ttIdx, subtrackTurn500m.valid, turnTrack, subtrackTurn500m)
+				if turnSubtrack.valid {
+					// fmt.Printf("====> turnTracks[%d] valid: %v: tt: %s st: %v", ttIdx, subtrackTurn500m.valid, turnTrack, subtrackTurn500m)
+					turnType := detectTurnType(turnSubtrack.ps, windDir)
+
+					if debug {
+						fmt.Printf("%s turn (%-9s): %s", turnType, turnSubtrack.TackSide(), turnSubtrack)
+					}
+
+					switch turnType {
+					case TurnUnknown:
+						if res.alpha500m.speed < turnSubtrack.speed {
+							res.alpha500m = turnSubtrack
+							res.unknTurnsCount++
+						}
+					case TurnJibe:
+						if res.wDirStats.alpha500m.speed < turnSubtrack.speed {
+							res.wDirStats.alpha500m = turnSubtrack
+						}
+					case TurnTack:
+						if res.wDirStats.delta500m.speed < turnSubtrack.speed {
+							res.wDirStats.delta500m = turnSubtrack
+						}
+					}
+
+					switch turnSubtrack.TackSide() {
+					case TackStarboard:
+						// Save the best starboard stats
+						if turnType == TurnJibe && res.wDirStats.starboardAlpha500m.speed < turnSubtrack.speed {
+							res.wDirStats.starboardAlpha500m = turnSubtrack
+						}
+						if turnType == TurnTack && res.wDirStats.starboardDelta500m.speed < turnSubtrack.speed {
+							res.wDirStats.starboardDelta500m = turnSubtrack
+						}
+					case TackPort:
+						// Save the best port stats
+						if turnType == TurnJibe && res.wDirStats.portAlpha500m.speed < turnSubtrack.speed {
+							res.wDirStats.portAlpha500m = turnSubtrack
+						}
+						if turnType == TurnTack && res.wDirStats.portDelta500m.speed < turnSubtrack.speed {
+							res.wDirStats.portDelta500m = turnSubtrack
+						}
+					}
+
+					switch turnType {
+					case TurnJibe:
+						res.wDirStats.jibesCount++
+					case TurnTack:
+						res.wDirStats.tacksCount++
+					}
+				} else {
+					turnType := detectTurnType(turnSubtrack.ps, windDir)
+					if debug {
+						fmt.Printf("%s turn (%-9s): %s, full track: %s", turnType, turnSubtrack.TackSide(), turnSubtrack, turnTrack)
+					}
+				}
+			}
+		}
 
 		switch statType {
 		case StatAll, Stat10sAvg, Stat10s1, Stat10s2, Stat10s3, Stat10s4, Stat10s5:
@@ -1033,8 +1001,81 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, windDir
 		}
 
 	}
-
 	return res
+}
+
+// collectTurnTracks gets all track segments with exactly 1 tack change
+// (2 tacks, 2 riding sides) without calculating any statistics.
+func collectTurnTracks(ps []Point, speedUnits UnitsFlag) []Track {
+	turnTracks := []Track{}
+
+	currTrack := Track{speedUnits: speedUnits}
+	nextTrack := Track{speedUnits: speedUnits}
+	currSide := TackUnknown
+	currTrackTacksCount := 0
+	// A total number of tacks (riding side)
+	totalTacksNo := 0
+
+	for psIdx := 0; psIdx < len(ps); psIdx++ {
+		p := ps[psIdx]
+
+		if p.tackSide != TackUnknown && p.tackSide != currSide {
+			// fmt.Printf("====> [%4d, %s] - ch - totalTacksNo: %d, currTrackTacksCount: %d, currSide/newSide: %v/%v\n", psIdx, p.ts, totalTacksNo, currTrackTacksCount, currSide, p.tackSide)
+			currSide = p.tackSide
+			currTrackTacksCount++
+			totalTacksNo++
+		}
+
+		// fmt.Printf("====> [%4d, %s] - totalTacksNo: %d, currTrackTacksCount: %d, currSide: %v\n", psIdx, p.ts, totalTacksNo, currTrackTacksCount, currSide)
+
+		if totalTacksNo > 0 {
+			if currTrackTacksCount <= 2 {
+				currTrack.ps = append(currTrack.ps, p)
+				if totalTacksNo > 1 {
+					// The first point must have known tack side
+					if len(nextTrack.ps) > 0 || p.tackSide != TackUnknown {
+						nextTrack.ps = append(nextTrack.ps, p)
+					}
+				}
+			} else {
+				nextTrack.ps = append(nextTrack.ps, p)
+				// fmt.Printf("====> [%4d, %s] - totalTacksNo: %d, curr: %v, next: %v\n", psIdx, p.ts, totalTacksNo, currTrack, nextTrack)
+				turnTracks = append(turnTracks, currTrack)
+
+				currTrack = nextTrack
+				nextTrack = Track{speedUnits: speedUnits}
+				currTrackTacksCount = 2
+			}
+		}
+	}
+
+	// Add the end segment if it contains 2 tacks (riding sides)
+	if currTrackTacksCount > 1 {
+		turnTracks = append(turnTracks, currTrack)
+	}
+
+	return turnTracks
+}
+
+// findMaxTurnSubtrack finds fastest subtrack from a single-turn track.
+func findMaxTurnSubtrack(turnTrack Track, speedUnits UnitsFlag) Track {
+	trackTurn500m := Track{speedUnits: speedUnits}
+	subtrackTurn500m := Track{speedUnits: speedUnits}
+	subtrackTurn500mMax := Track{speedUnits: speedUnits}
+
+	for psIdx := 0; psIdx < len(turnTrack.ps); psIdx++ {
+		trackTurn500m, subtrackTurn500m = trackTurn500m.addPointTurn500(turnTrack.ps[psIdx])
+
+		// fmt.Printf("====> turnTracks[%d] valid: %v: tt: %s st: %v", ttIdx, subtrackTurn500m.valid, turnTrack, subtrackTurn500m)
+		if subtrackTurn500m.valid && subtrackTurn500m.speed > subtrackTurn500mMax.speed {
+			// fmt.Printf("====> turnTracks[%d] valid: %v: tt: %s st: %v", ttIdx, subtrackTurn500m.valid, turnTrack, subtrackTurn500m)
+			subtrackTurn500mMax = subtrackTurn500m
+			// fmt.Printf("====> turnTracks[%d] valid: %v: st sides: %v - %v, tt: %s", ttIdx, subtrackTurn500m.valid, subtrackTurn500m.ps[0].tackSide, subtrackTurn500m.ps[len(subtrackTurn500m.ps)-1].tackSide, turnTrack)
+			// Determine turn type (jibe or tack), use known or assumed wind direction.
+		}
+	}
+
+	return subtrackTurn500mMax
 }
 
 // KtsToMs converts kts to m/s.
