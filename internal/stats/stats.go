@@ -755,6 +755,14 @@ func CleanUp(points Points, deltaSpeedMax float64, speedUnits UnitsFlag) []Point
 
 // CalculateStats calculate statistics from cleaned up points.
 func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, windDir float64, debug bool) Stats {
+	windDirKnown := windDir >= 0
+
+	// If wind directio is knot known, calculate it based on assumption that favorite turn is jibe.
+	// Makes turn detection more precise.
+	if !windDirKnown {
+		windDir = AutoDetectWindDir(ps, TurnJibe)
+	}
+
 	// Calculate heading and tackSide for each point.
 	// fmt.Printf("wind dir: %.3f\n", windDir)
 	for i := 1; i < len(ps); i++ {
@@ -762,14 +770,11 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, windDir
 		// fmt.Printf("====> p[%d] (%s), h: %.3f, tt: %s, speed: %.2f\n", i, ps[i].ts, ps[i].heading, ps[i].tackSide, *ps[i].speed)
 	}
 
-	res := Stats{speedUnits: speedUnits, wDirKnown: windDir >= 0}
+	res := Stats{speedUnits: speedUnits, wDirKnown: windDirKnown}
 	res.speed5x10s = append(res.speed5x10s,
 		Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits})
 	res.unknTurnsCount = 0
 
-	// If wind directio is know known, calculate it based on assumption that favorite turn is jibe.
-	// Makes turn detection more precise.
-	windDir = AutoDetectWindDir(ps, TurnJibe)
 	// Initialize wind dir statistics, even for assumed wind direction.
 	res.wDirStats.windDirection = windDir
 	res.wDirStats.tacksCount = 0
