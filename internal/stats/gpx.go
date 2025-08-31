@@ -122,7 +122,7 @@ func ReadPointsGpx(r io.Reader) (Points, error) {
 // readPointGpx transforms a track point from a GPX file
 // to internal Point structure.
 func readPointGpx(trkpt Trkpt) (Point, error) {
-	pt := Point{isPoint: true, lat: trkpt.Lat, lon: trkpt.Lon, ts: trkpt.Time, ele: trkpt.Ele, heading: -1, tackType: TackUnknown}
+	pt := Point{isPoint: true, lat: trkpt.Lat, lon: trkpt.Lon, ts: trkpt.Time, ele: trkpt.Ele, heading: -1, tackSide: TackUnknown}
 	if trkpt.Extensions != nil && trkpt.Extensions.TrackPointExtension != nil {
 		tpe := trkpt.Extensions.TrackPointExtension
 		pt.speed = &tpe.Speed

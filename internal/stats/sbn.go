@@ -103,5 +103,5 @@ func readPointSbn(r io.Reader) (Point, error) {
 		return Point{}, errs.Errorf("Nav Valid != 0: %x.", navValid)
 	}
 
-	return Point{isPoint: true, lat: lat, lon: lon, ts: ts, heading: -1, tackType: TackUnknown}, nil
+	return Point{isPoint: true, lat: lat, lon: lon, ts: ts, heading: -1, tackSide: TackUnknown}, nil
 }
