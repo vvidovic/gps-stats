@@ -1081,11 +1081,16 @@ func detectPointHeading(windDir float64, pPrev, p Point) (float64, TackType) {
 
 	// Heading relative to wind direction (where the wind is coming from)
 	relHeading := math.Mod(h-windDir+360, 360)
+	// fmt.Printf("  ====> dist: %.2f, speeds: (%.2f, %.2f, %.2f), heading: %.2f\n",
+	// 	distance(pPrev, p), *pPrev.speed, *p.speed, distance(pPrev, p)/p.ts.Sub(pPrev.ts).Seconds(), relHeading)
 
-	if relHeading >= 0 && relHeading < 180 {
+	// Minimum difference between exact upwind or downwind to recognize a tack side.
+	minHeadingDiff := 30.0
+
+	if relHeading >= (0+minHeadingDiff) && relHeading <= (180-minHeadingDiff) {
 		return h, TackStarboard
 	}
-	if relHeading >= 180 && relHeading < 360 {
+	if relHeading >= (180+minHeadingDiff) && relHeading <= (360-minHeadingDiff) {
 		return h, TackPort
 	}
 	return h, TackUnknown
