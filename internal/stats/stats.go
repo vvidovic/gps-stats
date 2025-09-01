@@ -1316,11 +1316,13 @@ func detectTurnType(ps []Point, windDir float64) TurnType {
 // Unknown: otherwise
 func detectTurnTypeFromTurnPoints(pTurnBegin, pTurnEnd Point, windDir float64) TurnType {
 	dist := distSimple(pTurnBegin.lat, pTurnBegin.lon, pTurnEnd.lat, pTurnEnd.lon)
-	// fmt.Printf("====> awd - tack prev -> curr: %v -> %v, pStart: %v, pEnd: %v, dist: %.2f\n", tackSidePrev, tackSideCurr, pTurnBegin, pTurnEnd, dist)
+	// fmt.Printf("====> awd - pStart: %v, pEnd: %v, dist: %.2f\n", pTurnBegin, pTurnEnd, dist)
 	// IF distance is too small, can't know the turn type.
 	if dist >= 1.0 {
 		h := heading(pTurnBegin, pTurnEnd)
-		return detectTurnTypeFromTurnHeading(h, windDir)
+		turnType := detectTurnTypeFromTurnHeading(h, windDir)
+		// fmt.Printf("  ==> awd - pStart: %v, pEnd: %v, dist: %.2f, h: %.2f, wd: %.2f, turn: %v\n", pTurnBegin, pTurnEnd, dist, h, windDir, turnType)
+		return turnType
 	}
 
 	return TurnUnknown
@@ -1333,9 +1335,11 @@ func detectTurnTypeFromTurnPoints(pTurnBegin, pTurnEnd Point, windDir float64) T
 func detectTurnTypeFromTurnHeading(heading float64, windDir float64) TurnType {
 	diff := angleDiff(heading, windDir)
 
-	if diff < 90 {
+	// minHeadingDiff: a minimum difference between exact upwind or downwind to recognize a turn type.
+	minHeadingDiff := 60.0
+	if diff < minHeadingDiff {
 		return TurnJibe
-	} else if diff > 90 {
+	} else if diff > (180 - minHeadingDiff) {
 		return TurnTack
 	}
 
@@ -1364,9 +1368,8 @@ func detectTackSideFromHeading(heading, windDir float64) TackSide {
 	// 	distance(pPrev, p), *pPrev.speed, *p.speed, distance(pPrev, p)/p.ts.Sub(pPrev.ts).Seconds(),
 	// 	windDir, h, relHeading)
 
-	// Minimum difference between exact upwind or downwind to recognize a tack side.
+	// minHeadingDiff: a minimum difference between exact upwind or downwind to recognize a tack side.
 	minHeadingDiff := 30.0
-
 	if relHeading >= (0+minHeadingDiff) && relHeading <= (180-minHeadingDiff) {
 		return TackStarboard
 	}
