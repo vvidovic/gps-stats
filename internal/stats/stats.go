@@ -1132,50 +1132,6 @@ func overlapByGlobalIdx(a, b []Point) bool {
 	return false
 }
 
-// detectTurnType determines the type of sailing maneuver (jibe or tack) based on the track points and wind direction.
-func detectTurnType(ps []Point, windDir float64) TurnType {
-	if len(ps) < 2 {
-		return TurnUnknown
-	}
-
-	// Find last point on initial tack side and the first point on the oposite side tack.
-	pStartTurn := Point{}
-	pEndTurn := Point{}
-	for i := 0; i < len(ps); i++ {
-		p := ps[i]
-		if p.tackSide != TackUnknown {
-			if pStartTurn.tackSide == TackUnknown {
-				// Set the start point to the first one with defined tack.
-				pStartTurn = p
-			} else if pStartTurn.tackSide == p.tackSide {
-				// Update the start point to the last one with the same tack.
-				pStartTurn = p
-			} else if pEndTurn.tackSide == TackUnknown {
-				// Set the end point to the first one with the opposite tack.
-				pEndTurn = p
-				break
-			}
-		}
-	}
-
-	// Find if the direction from the first turn point to
-	// the last turn point is downwind or upwind.
-	h := heading(pStartTurn, pEndTurn)
-	diff := angleDiff(h, windDir)
-	if diff > 180 {
-		diff = 360 - diff
-	}
-	// Downwind (jibe): heading approximately down the wind direction
-	if diff < 90 {
-		return TurnJibe
-	}
-	// Upwind (tack): heading approximately into the wind direction
-	if 180-diff < 90 {
-		return TurnTack
-	}
-	return TurnUnknown
-}
-
 // heading returns heading in degrees from p1 to p2 (0 = North, 90 = East)
 func heading(p1, p2 Point) float64 {
 	return headingSimple(p1.lat, p1.lon, p2.lat, p2.lon)
@@ -1329,6 +1285,44 @@ func angleDiff(angle1, angle2 float64) float64 {
 	return diff
 }
 
+// detectTurnType determines the type of sailing maneuver (jibe or tack) based on the track points and wind direction.
+func detectTurnType(ps []Point, windDir float64) TurnType {
+	if len(ps) < 2 {
+		return TurnUnknown
+	}
+
+	// Find last point on initial tack side and the first point on the oposite side tack.
+	pTurnBegin := Point{}
+	pTurnEnd := Point{}
+	for i := 0; i < len(ps); i++ {
+		p := ps[i]
+		if p.tackSide != TackUnknown {
+			if pTurnBegin.tackSide == TackUnknown {
+				// Set the start point to the first one with defined tack.
+				pTurnBegin = p
+			} else if pTurnBegin.tackSide == p.tackSide {
+				// Update the start point to the last one with the same tack.
+				pTurnBegin = p
+			} else if pTurnEnd.tackSide == TackUnknown {
+				// Set the end point to the first one with the opposite tack.
+				pTurnEnd = p
+				break
+			}
+		}
+	}
+
+	// Find if the direction from the first turn point to
+	// the last turn point is downwind or upwind.
+	dist := distSimple(pTurnBegin.lat, pTurnBegin.lon, pTurnEnd.lat, pTurnEnd.lon)
+	// fmt.Printf("====> awd - pStart: %v, pEnd: %v, dist: %.2f\n", pTurnBegin, pTurnEnd, dist)
+	// IF distance is too small, can't know the turn type.
+	if dist >= 0.5 {
+		h := heading(pTurnBegin, pTurnEnd)
+		return detectTurnTypeFromHeading(h, windDir)
+	}
+	return TurnUnknown
+}
+
 // detectTurnTypeFromHeading: detects the type of turn (jibe/tack) from a single heading and wind direction
 // Tack: heading is near windDir (within 30 deg)
 // Jibe: heading is near windDir+180 (within 30 deg)
@@ -1336,9 +1330,9 @@ func angleDiff(angle1, angle2 float64) float64 {
 func detectTurnTypeFromHeading(heading float64, windDir float64) TurnType {
 	diff := angleDiff(heading, windDir)
 
-	if diff < 30 {
+	if diff < 90 {
 		return TurnJibe
-	} else if diff > 150 {
+	} else if diff > 90 {
 		return TurnTack
 	}
 
