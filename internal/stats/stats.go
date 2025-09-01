@@ -1235,22 +1235,17 @@ func autoDetectWindDir(ps []Point, prefer TurnType) float64 {
 				// Set the end point of the turn to the first point on the new tack side.
 				pTurnEnd = p
 				tackSideCurr = t
-				dist := distSimple(pTurnBegin.lat, pTurnBegin.lon, pTurnEnd.lat, pTurnEnd.lon)
 				// fmt.Printf("====> awd - tack prev -> curr: %v -> %v, pStart: %v, pEnd: %v, dist: %.2f\n", tackSidePrev, tackSideCurr, pTurnBegin, pTurnEnd, dist)
-				turnType := TurnUnknown
-				// IF distance is too small, can't know the turn type.
-				if dist >= 0.5 {
-					h := heading(pTurnBegin, pTurnEnd)
-					turnType = detectTurnTypeFromHeading(h, wdAssumed)
-					switch turnType {
-					case TurnJibe:
-						jibeCnt++
-					case TurnTack:
-						tackCnt++
-						// case TurnUnknown:
-						// 	fmt.Printf("====> awd - unknown turn, pStart: %v, pEnd: %v, dist: %.2f, h: %.2f\n", pTurnBegin, pTurnEnd, dist, h)
-					}
+				turnType := detectTurnTypeFromTurnPoints(pTurnBegin, pTurnEnd, wdAssumed)
+				switch turnType {
+				case TurnJibe:
+					jibeCnt++
+				case TurnTack:
+					tackCnt++
+					// case TurnUnknown:
+					// 	fmt.Printf("====> awd - unknown turn, pStart: %v, pEnd: %v, dist: %.2f, h: %.2f\n", pTurnBegin, pTurnEnd, dist, h)
 				}
+
 				tackSidePrev = tackSideCurr
 			}
 		}
@@ -1311,23 +1306,31 @@ func detectTurnType(ps []Point, windDir float64) TurnType {
 		}
 	}
 
-	// Find if the direction from the first turn point to
-	// the last turn point is downwind or upwind.
-	dist := distSimple(pTurnBegin.lat, pTurnBegin.lon, pTurnEnd.lat, pTurnEnd.lon)
 	// fmt.Printf("====> awd - pStart: %v, pEnd: %v, dist: %.2f\n", pTurnBegin, pTurnEnd, dist)
+	return detectTurnTypeFromTurnPoints(pTurnBegin, pTurnEnd, windDir)
+}
+
+// detectTurnTypeFromTurnPoints: detects the type of turn (jibe/tack) from turn begin and enc points and wind direction
+// Tack: heading is near windDir
+// Jibe: heading is near windDir+180
+// Unknown: otherwise
+func detectTurnTypeFromTurnPoints(pTurnBegin, pTurnEnd Point, windDir float64) TurnType {
+	dist := distSimple(pTurnBegin.lat, pTurnBegin.lon, pTurnEnd.lat, pTurnEnd.lon)
+	// fmt.Printf("====> awd - tack prev -> curr: %v -> %v, pStart: %v, pEnd: %v, dist: %.2f\n", tackSidePrev, tackSideCurr, pTurnBegin, pTurnEnd, dist)
 	// IF distance is too small, can't know the turn type.
-	if dist >= 0.5 {
+	if dist >= 1.0 {
 		h := heading(pTurnBegin, pTurnEnd)
-		return detectTurnTypeFromHeading(h, windDir)
+		return detectTurnTypeFromTurnHeading(h, windDir)
 	}
+
 	return TurnUnknown
 }
 
-// detectTurnTypeFromHeading: detects the type of turn (jibe/tack) from a single heading and wind direction
-// Tack: heading is near windDir (within 30 deg)
-// Jibe: heading is near windDir+180 (within 30 deg)
+// detectTurnTypeFromTurnHeading: detects the type of turn (jibe/tack) from a single heading and wind direction
+// Tack: heading is near windDir
+// Jibe: heading is near windDir+180
 // Unknown: otherwise
-func detectTurnTypeFromHeading(heading float64, windDir float64) TurnType {
+func detectTurnTypeFromTurnHeading(heading float64, windDir float64) TurnType {
 	diff := angleDiff(heading, windDir)
 
 	if diff < 90 {
