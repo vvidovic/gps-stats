@@ -753,21 +753,39 @@ func CleanUp(points Points, deltaSpeedMax float64, speedUnits UnitsFlag) []Point
 	return res
 }
 
+// UpdateHeadings sets headings for all points. Headings are used in many other calculations.
+func UpdateHeadings(ps []Point) {
+	for i := 1; i < len(ps); i++ {
+		ps[i].heading = heading(ps[i-1], ps[i])
+	}
+}
+
 // CalculateStats calculate statistics from cleaned up points.
-func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, windDir float64, debug bool) Stats {
+func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, preferedTurn TurnType, windDir float64, debug bool) Stats {
+	// Calculate heading for each point.
+	for i := 1; i < len(ps); i++ {
+		ps[i].heading = heading(ps[i-1], ps[i])
+		// fmt.Printf("====> p[%d] (%s), h: %.3f, speed: %.2f\n", i, ps[i].ts, ps[i].heading, *ps[i].speed)
+	}
+
+	// Auto-detect wind direction if requested
+	if preferedTurn != TurnUnknown {
+		windDir = autoDetectWindDir(ps, preferedTurn)
+	}
+
 	windDirKnown := windDir >= 0
 
 	// If wind directio is knot known, calculate it based on assumption that favorite turn is jibe.
 	// Makes turn detection more precise.
 	if !windDirKnown {
-		windDir = AutoDetectWindDir(ps, TurnJibe)
+		windDir = autoDetectWindDir(ps, TurnJibe)
 	}
 
-	// Calculate heading and tackSide for each point.
+	// Calculate tackSide for each point.
 	// fmt.Printf("wind dir: %.3f\n", windDir)
 	for i := 1; i < len(ps); i++ {
-		ps[i].heading, ps[i].tackSide = detectPointHeading(windDir, ps[i-1], ps[i])
-		// fmt.Printf("====> p[%d] (%s), h: %.3f, tt: %s, speed: %.2f\n", i, ps[i].ts, ps[i].heading, ps[i].tackSide, *ps[i].speed)
+		ps[i].tackSide = detectTackSideFromHeading(ps[i].heading, windDir)
+		// fmt.Printf("====> p[%d] (%s), h: %.3f, ts: %s, speed: %.2f\n", i, ps[i].ts, ps[i].heading, ps[i].tackSide, *ps[i].speed)
 	}
 
 	res := Stats{speedUnits: speedUnits, wDirKnown: windDirKnown}
@@ -1114,44 +1132,6 @@ func overlapByGlobalIdx(a, b []Point) bool {
 	return false
 }
 
-// detectPointHeading determines the direction of movement for the point,
-// compared to the previous point and a tack side
-// (TackStarboard, TackPort, or TackUnknown) relative to the wind direction.
-// If the wind direction is unknown, it returns TackUnknown.
-//
-// Parameters:
-//   - wDirKnow: If wind direction is known..
-//   - windDir: The wind direction in degrees (from where the wind is coming).
-//   - pPrev: The previous GPS point.
-//   - p: The current GPS point for which we detect TackSide.
-//
-// Returns:
-//   - A heading angle (North == 0, East == 90).
-//   - A TackSide indicating the tack side: TackStarboard, TackPort, or TackUnknown.
-func detectPointHeading(windDir float64, pPrev, p Point) (float64, TackSide) {
-	h := heading(pPrev, p)
-	// If we don't know wind direction or heading (ride direction), return TackUnknown.
-	if windDir < 0 || h < 0 {
-		return h, TackUnknown
-	}
-
-	// Heading relative to wind direction (where the wind is coming from)
-	relHeading := math.Mod(h-windDir+360, 360)
-	// fmt.Printf("  ====> dist: %.2f, speeds: (%.2f, %.2f, %.2f), heading: %.2f\n",
-	// 	distance(pPrev, p), *pPrev.speed, *p.speed, distance(pPrev, p)/p.ts.Sub(pPrev.ts).Seconds(), relHeading)
-
-	// Minimum difference between exact upwind or downwind to recognize a tack side.
-	minHeadingDiff := 30.0
-
-	if relHeading >= (0+minHeadingDiff) && relHeading <= (180-minHeadingDiff) {
-		return h, TackStarboard
-	}
-	if relHeading >= (180+minHeadingDiff) && relHeading <= (360-minHeadingDiff) {
-		return h, TackPort
-	}
-	return h, TackUnknown
-}
-
 // detectTurnType determines the type of sailing maneuver (jibe or tack) based on the track points and wind direction.
 func detectTurnType(ps []Point, windDir float64) TurnType {
 	if len(ps) < 2 {
@@ -1201,25 +1181,21 @@ func heading(p1, p2 Point) float64 {
 	return headingSimple(p1.lat, p1.lon, p2.lat, p2.lon)
 }
 
-// AutoDetectWindDir automatically estimates the wind direction based on heading and the preferred maneuver ("jibe" or "tack").
+// autoDetectWindDir automatically estimates the wind direction based on heading and the preferred maneuver ("jibe" or "tack").
 // The 'prefer' parameter determines the preferred maneuver ("jibe" or "tack"); if not specified or unknown, "jibe" is used as the default value.
 // Returns the estimated wind direction (in degrees, where the wind is coming from)
-func AutoDetectWindDir(ps []Point, prefer TurnType) float64 {
+func autoDetectWindDir(ps []Point, prefer TurnType) float64 {
 	if len(ps) < 2 {
 		return -1
 	}
-	// 1. Calculate headings
-	headings := make([]float64, 0, len(ps)-1)
-	for i := 1; i < len(ps); i++ {
-		h := heading(ps[i-1], ps[i])
-		headings = append(headings, h)
-	}
 	// 2. Histogram of headings (bins of 10°)
 	bins := make([]int, 36)
-	for _, h := range headings {
-		bin := int(h/10) % 36
+	for _, p := range ps {
+		bin := int(p.heading/10) % 36
 		bins[bin]++
 	}
+
+	// fmt.Printf("====> awd - bins: %v\n", bins)
 
 	// 3. Find the most populated bin, then find the most populated bin that is 180° apart
 	primaryBin := -1
@@ -1251,7 +1227,8 @@ func AutoDetectWindDir(ps []Point, prefer TurnType) float64 {
 
 	// 4. Collect all headings from both bins (primary and secondary/opposite), rotate secondary by 180°
 	selectedHeadings := []float64{}
-	for _, h := range headings {
+	for _, p := range ps {
+		h := p.heading
 		bin := int(h/10) % 36
 		// does the bin belong to the primary bin or its neighbors
 		if bin == primaryBin || bin == (primaryBin+1)%36 || bin == (primaryBin+35)%36 {
@@ -1278,50 +1255,68 @@ func AutoDetectWindDir(ps []Point, prefer TurnType) float64 {
 		avgHeading += 360
 	}
 
-	// 6. Wind direction is perpendicular to the mean heading
-	wd1 := math.Mod(avgHeading+90, 360)
-	wd2 := math.Mod(avgHeading-90+360, 360)
-
-	// 7. Determine which candidate is correct based on the preferred maneuver
-	jibe1, tack1 := 0, 0
-	jibe2, tack2 := 0, 0
-	prev1 := TurnUnknown
-	prev2 := TurnUnknown
-	for _, h := range headings {
-		t1 := detectTurnTypeFromHeading(h, wd1)
-		t2 := detectTurnTypeFromHeading(h, wd2)
-		if t1 != TurnUnknown && prev1 == TurnUnknown {
-			if t1 == TurnJibe {
-				jibe1++
-			} else if t1 == TurnTack {
-				tack1++
+	// 6. Wind direction is perpendicular to the mean heading, assume one of 2 opposite directions.
+	wdAssumed := math.Mod(avgHeading+90, 360)
+	wdOpposite := math.Mod(avgHeading-90+360, 360)
+	pTurnBegin := Point{heading: -1}
+	pTurnEnd := Point{heading: -1}
+	tackSidePrev := TackUnknown
+	tackSideCurr := TackUnknown
+	jibeCnt := 0
+	tackCnt := 0
+	for _, p := range ps {
+		t := detectTackSideFromHeading(p.heading, wdAssumed)
+		// Ignore unknown tack sides and find 2 points for each turn (start & end of the turn).
+		if t != TackUnknown {
+			if tackSidePrev == TackUnknown {
+				// Initial known tack
+				tackSidePrev = t
+				tackSideCurr = t
+			} else if t == tackSideCurr {
+				// Set the begin point of the turn to the last point on the same tack side.
+				pTurnBegin = p
+			} else if t != tackSideCurr {
+				// Set the end point of the turn to the first point on the new tack side.
+				pTurnEnd = p
+				tackSideCurr = t
+				dist := distSimple(pTurnBegin.lat, pTurnBegin.lon, pTurnEnd.lat, pTurnEnd.lon)
+				// fmt.Printf("====> awd - tack prev -> curr: %v -> %v, pStart: %v, pEnd: %v, dist: %.2f\n", tackSidePrev, tackSideCurr, pTurnBegin, pTurnEnd, dist)
+				turnType := TurnUnknown
+				// IF distance is too small, can't know the turn type.
+				if dist >= 0.5 {
+					h := heading(pTurnBegin, pTurnEnd)
+					turnType = detectTurnTypeFromHeading(h, wdAssumed)
+					switch turnType {
+					case TurnJibe:
+						jibeCnt++
+					case TurnTack:
+						tackCnt++
+						// case TurnUnknown:
+						// 	fmt.Printf("====> awd - unknown turn, pStart: %v, pEnd: %v, dist: %.2f, h: %.2f\n", pTurnBegin, pTurnEnd, dist, h)
+					}
+				}
+				tackSidePrev = tackSideCurr
 			}
 		}
-		prev1 = t1
-		if t2 != TurnUnknown && prev2 == TurnUnknown {
-			if t2 == TurnJibe {
-				jibe2++
-			} else if t2 == TurnTack {
-				tack2++
-			}
-		}
-		prev2 = t2
 	}
 	// Determine wd based on preferred maneuver
 	var result float64
 	if prefer == TurnTack {
-		if tack1 >= tack2 {
-			result = wd1
+		if tackCnt >= jibeCnt {
+			result = wdAssumed
 		} else {
-			result = wd2
+			result = wdOpposite
 		}
-	} else { // default: jibe
-		if jibe1 >= jibe2 {
-			result = wd1
+	} else {
+		if jibeCnt >= tackCnt {
+			result = wdAssumed
 		} else {
-			result = wd2
+			result = wdOpposite
 		}
 	}
+
+	// fmt.Printf("====> awd - assumed wd: %.2f, j/t: %d/%d, pref: %v, res: %v\n", wdAssumed, jibeCnt, tackCnt, prefer, result)
+
 	return result
 }
 
@@ -1348,4 +1343,38 @@ func detectTurnTypeFromHeading(heading float64, windDir float64) TurnType {
 	}
 
 	return TurnUnknown
+}
+
+// detectTackSideFromHeading determines a tack side
+// (TackStarboard, TackPort, or TackUnknown) relative to the wind direction.
+// If the wind direction or heading is unknown, it returns TackUnknown.
+//
+// Parameters:
+//   - heading: The ride direction heading
+//   - windDir: The wind direction in degrees (from where the wind is coming).
+//
+// Returns:
+//   - A TackSide indicating the tack side: TackStarboard, TackPort, or TackUnknown.
+func detectTackSideFromHeading(heading, windDir float64) TackSide {
+	// If we don't know wind direction or heading (ride direction), return TackUnknown.
+	if windDir < 0 || heading < 0 {
+		return TackUnknown
+	}
+
+	// Heading relative to wind direction (where the wind is coming from)
+	relHeading := math.Mod(windDir-heading+360, 360)
+	// fmt.Printf("  ====> dist: %.2f, speeds: (%.2f, %.2f, %.2f), wd: %.2f, heading: %.2f, rel h: %.2f\n",
+	// 	distance(pPrev, p), *pPrev.speed, *p.speed, distance(pPrev, p)/p.ts.Sub(pPrev.ts).Seconds(),
+	// 	windDir, h, relHeading)
+
+	// Minimum difference between exact upwind or downwind to recognize a tack side.
+	minHeadingDiff := 30.0
+
+	if relHeading >= (0+minHeadingDiff) && relHeading <= (180-minHeadingDiff) {
+		return TackStarboard
+	}
+	if relHeading >= (180+minHeadingDiff) && relHeading <= (360-minHeadingDiff) {
+		return TackPort
+	}
+	return TackUnknown
 }

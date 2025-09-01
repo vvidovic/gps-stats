@@ -155,11 +155,6 @@ func printStatsForFile(
 	points.Ps = ps
 	pointsCleanedNo := len(ps)
 
-	// Auto-detect wind direction if requested
-	if autoWindTurn != stats.TurnUnknown {
-		windDir = stats.AutoDetectWindDir(ps, autoWindTurn)
-	}
-
 	if *saveFilteredGpxFlag {
 		newFilePath := filePath + ".filtered.gpx"
 		f, err := os.Create(newFilePath)
@@ -186,7 +181,7 @@ func printStatsForFile(
 		}
 	}
 
-	s := stats.CalculateStats(ps, statType, speedUnits, windDir, debug)
+	s := stats.CalculateStats(ps, statType, speedUnits, autoWindTurn, windDir, debug)
 
 	switch statType {
 	case stats.StatAll:
