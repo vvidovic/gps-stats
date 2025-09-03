@@ -916,6 +916,9 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, prefere
 						if res.wDirStats.alpha500m.speed < turnSubtrack.speed {
 							res.wDirStats.alpha500m = turnSubtrack
 						}
+						if res.alpha500m.speed < turnSubtrack.speed {
+							res.alpha500m = turnSubtrack
+						}
 					case TurnTack:
 						if res.wDirStats.delta500m.speed < turnSubtrack.speed {
 							res.wDirStats.delta500m = turnSubtrack
