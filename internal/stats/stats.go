@@ -781,8 +781,6 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, prefere
 		windDir = autoDetectWindDir(ps, TurnJibe)
 	}
 
-	fmt.Printf("wind dir: %.3f\n", windDir)
-
 	// Calculate tackSide for each point.
 	// fmt.Printf("wind dir: %.3f\n", windDir)
 	for i := 1; i < len(ps); i++ {
