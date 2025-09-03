@@ -781,6 +781,8 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, prefere
 		windDir = autoDetectWindDir(ps, TurnJibe)
 	}
 
+	fmt.Printf("wind dir: %.3f\n", windDir)
+
 	// Calculate tackSide for each point.
 	// fmt.Printf("wind dir: %.3f\n", windDir)
 	for i := 1; i < len(ps); i++ {
@@ -1338,9 +1340,9 @@ func detectTurnTypeFromTurnHeading(heading float64, windDir float64) TurnType {
 	// minHeadingDiff: a minimum difference between exact upwind or downwind to recognize a turn type.
 	minHeadingDiff := 60.0
 	if diff < minHeadingDiff {
-		return TurnJibe
-	} else if diff > (180 - minHeadingDiff) {
 		return TurnTack
+	} else if diff > (180 - minHeadingDiff) {
+		return TurnJibe
 	}
 
 	return TurnUnknown
