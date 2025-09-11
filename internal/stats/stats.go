@@ -1123,18 +1123,6 @@ func MsToUnits(speedMs float64, speedUnits UnitsFlag) float64 {
 	}
 }
 
-// overlapByGlobalIdx: checks if two slices of points overlap by globalIdx
-func overlapByGlobalIdx(a, b []Point) bool {
-	for _, p1 := range a {
-		for _, p2 := range b {
-			if p1.globalIdx == p2.globalIdx {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 // heading returns heading in degrees from p1 to p2 (0 = North, 90 = East)
 func heading(p1, p2 Point) float64 {
 	return headingSimple(p1.lat, p1.lon, p2.lat, p2.lon)
