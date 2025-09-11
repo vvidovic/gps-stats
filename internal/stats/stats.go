@@ -391,8 +391,10 @@ func (t Track) addPointTurnMaxDistance(p Point,
 // WindDirectionStats contains statistics for a specific wind direction
 type WindDirectionStats struct {
 	windDirection       float64
+	unknTurnsCount      int
 	jibesCount          int
 	tacksCount          int
+	unknTurn500m        Track
 	alpha500m           Track
 	delta500m           Track
 	starboardSpeed2s    Track
@@ -409,23 +411,17 @@ type WindDirectionStats struct {
 
 // Stats constains calculated statistics.
 type Stats struct {
-	totalDistance  float64
-	totalDuration  float64
-	unknTurnsCount int
-	speed2s        Track
-	speed5x10s     []Track
-	speed15m       Track
-	speed1h        Track
-	speed100m      Track
-	speed1NM       Track
-	alpha500m      Track
-	speedUnits     UnitsFlag
-	wDirKnown      bool
-	wDirStats      WindDirectionStats
-}
-
-func (s Stats) AllTurnsCount() int {
-	return s.unknTurnsCount + s.wDirStats.jibesCount + s.wDirStats.tacksCount
+	totalDistance float64
+	totalDuration float64
+	speed2s       Track
+	speed5x10s    []Track
+	speed15m      Track
+	speed1h       Track
+	speed100m     Track
+	speed1NM      Track
+	speedUnits    UnitsFlag
+	wDirKnown     bool
+	wDirStats     WindDirectionStats
 }
 
 // TxtSingleStat returns a single statistic.
@@ -458,7 +454,7 @@ func (s Stats) TxtSingleStat(statType StatFlag) string {
 	case Stat1nm:
 		return s.speed1NM.TxtLine()
 	case StatAlpha:
-		return s.alpha500m.TxtLine()
+		return s.wDirStats.alpha500m.TxtLine()
 	}
 	return ""
 }
@@ -476,11 +472,11 @@ func (s Stats) TxtStats() string {
 	}
 
 	if s.wDirKnown {
-		fmt.Fprintf(&b, "Unkn turns Count:   %d\n", s.unknTurnsCount)
+		fmt.Fprintf(&b, "Unkn turns Count:   %d\n", s.wDirStats.unknTurnsCount)
 		fmt.Fprintf(&b, "Jibes Count:        %d\n", s.wDirStats.jibesCount)
 		fmt.Fprintf(&b, "Tacks Count:        %d\n", s.wDirStats.tacksCount)
 	} else {
-		fmt.Fprintf(&b, "Turns Count:        %d\n", s.unknTurnsCount+s.wDirStats.jibesCount+s.wDirStats.tacksCount)
+		fmt.Fprintf(&b, "Turns Count:        %d\n", s.wDirStats.unknTurnsCount+s.wDirStats.jibesCount+s.wDirStats.tacksCount)
 	}
 
 	fmt.Fprintf(&b, "2 Second Peak:      %s\n", s.speed2s.TxtLine())
@@ -494,7 +490,7 @@ func (s Stats) TxtStats() string {
 	fmt.Fprintf(&b, "1 Hr:               %s\n", s.speed1h.TxtLine())
 	fmt.Fprintf(&b, "100m peak:          %s\n", s.speed100m.TxtLine())
 	fmt.Fprintf(&b, "Nautical Mile:      %s\n", s.speed1NM.TxtLine())
-	fmt.Fprintf(&b, "Alpha 500:          %s\n", s.alpha500m.TxtLine())
+	fmt.Fprintf(&b, "Alpha 500:          %s\n", s.wDirStats.alpha500m.TxtLine())
 
 	if s.wDirKnown {
 		fmt.Fprintf(&b, "Delta 500:          %s\n", s.wDirStats.delta500m.TxtLine())
@@ -529,7 +525,7 @@ func (s Stats) String() string {
 		"dist: %v\n  2s: %v\n  5x10s: %v\n  %v\n  15m: %v\n  1h: %v\n  100m: %v\n  1NM: %v\n  alpha: %v\n",
 		s.totalDistance, s.speed2s, CalcTracksAvg(s.speed5x10s), s.speed5x10s,
 		s.speed15m, s.speed1h,
-		s.speed100m, s.speed1NM, s.alpha500m)
+		s.speed100m, s.speed1NM, s.wDirStats.alpha500m)
 }
 
 // Calculate []Track average speed.
@@ -791,11 +787,12 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, prefere
 	res := Stats{speedUnits: speedUnits, wDirKnown: windDirKnown}
 	res.speed5x10s = append(res.speed5x10s,
 		Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits})
-	res.unknTurnsCount = 0
 
 	// Initialize wind dir statistics, even for assumed wind direction.
 	res.wDirStats.windDirection = windDir
+	res.wDirStats.unknTurnsCount = 0
 	res.wDirStats.tacksCount = 0
+	res.wDirStats.jibesCount = 0
 	res.wDirStats.starboardSpeed5x10s = append(res.wDirStats.starboardSpeed5x10s,
 		Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits}, Track{speedUnits: speedUnits})
 	res.wDirStats.portSpeed5x10s = append(res.wDirStats.portSpeed5x10s,
@@ -908,16 +905,12 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, prefere
 
 					switch turnType {
 					case TurnUnknown:
-						if res.alpha500m.speed < turnSubtrack.speed {
-							res.alpha500m = turnSubtrack
-							res.unknTurnsCount++
+						if res.wDirStats.unknTurn500m.speed < turnSubtrack.speed {
+							res.wDirStats.unknTurn500m = turnSubtrack
 						}
 					case TurnJibe:
 						if res.wDirStats.alpha500m.speed < turnSubtrack.speed {
 							res.wDirStats.alpha500m = turnSubtrack
-						}
-						if res.alpha500m.speed < turnSubtrack.speed {
-							res.alpha500m = turnSubtrack
 						}
 					case TurnTack:
 						if res.wDirStats.delta500m.speed < turnSubtrack.speed {
@@ -945,6 +938,8 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, prefere
 					}
 
 					switch turnType {
+					case TurnUnknown:
+						res.wDirStats.unknTurnsCount++
 					case TurnJibe:
 						res.wDirStats.jibesCount++
 					case TurnTack:
