@@ -1339,6 +1339,8 @@ func detectTurnTypeFromTurnHeading(heading float64, windDir float64) TurnType {
 	diff := angleDiff(heading, windDir)
 
 	// minHeadingDiff: a minimum difference between exact upwind or downwind to recognize a turn type.
+	// windDir: direction FROM which the wind is blowing
+	// heading: direction TO which we are riding
 	minHeadingDiff := 60.0
 	if diff < minHeadingDiff {
 		return TurnTack
