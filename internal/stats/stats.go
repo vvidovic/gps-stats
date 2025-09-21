@@ -647,7 +647,7 @@ func headingSimple(lat1, lon1, lat2, lon2 float64) float64 {
 }
 
 // CleanUp removes points that seems not valid.
-func CleanUp(points Points, deltaSpeedMax float64, speedUnits UnitsFlag) []Point {
+func CleanUp(points Points, deltaSpeedMax float64, speedUnits UnitsFlag, debug bool) []Point {
 	psCurr := points.Ps
 	res := []Point{}
 	if len(psCurr) > 1 {
@@ -677,31 +677,36 @@ func CleanUp(points Points, deltaSpeedMax float64, speedUnits UnitsFlag) []Point
 				if pCurr.ts == pNext.ts {
 					// Skip both points if times are equal.
 					idxPs++
-					// fmt.Printf("====> skipping curr & next: %v & %v\n", pCurr, pNext)
+					// fmt.Printf("====> skipping equal ts points, curr & next: %v & %v\n", pCurr, pNext)
 				} else {
-					// Remove points "around" missing points.
-					// Missing point is point more than 1 second after previous point.
-					dt := pNext.ts.Sub(pCurr.ts).Seconds()
-					if dt > 1 {
-						idxNext := idxPs + 1
-						idxLast := idxNext
-						// fmt.Printf("====> dt > 1, idxPs, idxNext, idxLast, pNext: %v, %v, %v, %v\n", idxPs, idxNext, idxLast, pNext)
-						for idxNext < psLen-1 && dt > 1 {
-							p1 := psCurr[idxNext]
-							p2 := psCurr[idxNext+1]
-							dt = p2.ts.Sub(p1.ts).Seconds()
-							idxLast = idxNext
-							idxNext++
-							// fmt.Printf("====> dt: %v, idxPs, idxNext, idxLast: %v, %v, %v\n", dt, idxPs, idxNext, idxLast)
-						}
-						// Skip points from the pCurr (first before first missing) to pLast + 2 (third after last missing)
-						idxPs += idxLast - idxPs + 2
-						// fmt.Printf("====> skipping from %v to %v\n", pCurr, psCurr[idxLast])
-					} else {
-						// fmt.Printf("adding %v\n", pCurr)
-						psCleaned = append(psCleaned, pCurr)
-						pCurr = pNext
-					}
+					psCleaned = append(psCleaned, pCurr)
+					pCurr = pNext
+
+					// // Removing this logic - some tracks (unfortunately) have quite a lot of missing points,
+					// //                       but still looks good.
+					// // Remove points "around" missing points.
+					// // Missing point is point more than 1 second after previous point.
+					// dt := pNext.ts.Sub(pCurr.ts).Seconds()
+					// if dt > 1 {
+					// 	idxNext := idxPs + 1
+					// 	idxLast := idxNext
+					// 	// fmt.Printf("====> dt > 1, idxPs, idxNext, idxLast, pNext: %v, %v, %v, %v\n", idxPs, idxNext, idxLast, pNext)
+					// 	for idxNext < psLen-1 && dt > 1 {
+					// 		p1 := psCurr[idxNext]
+					// 		p2 := psCurr[idxNext+1]
+					// 		dt = p2.ts.Sub(p1.ts).Seconds()
+					// 		idxLast = idxNext
+					// 		idxNext++
+					// 		// fmt.Printf("====> dt: %v, idxPs, idxNext, idxLast: %v, %v, %v\n", dt, idxPs, idxNext, idxLast)
+					// 	}
+					// 	// Skip points from the pCurr (first before first missing) to pLast + 2 (third after last missing)
+					// 	idxPs += idxLast - idxPs + 2
+					// 	// fmt.Printf("====> skipping points around missing points, from %v to %v\n", pCurr, psCurr[idxLast])
+					// } else {
+					// 	// fmt.Printf("adding %v\n", pCurr)
+					// 	psCleaned = append(psCleaned, pCurr)
+					// 	pCurr = pNext
+					// }
 				}
 			} else {
 				psCleaned = append(psCleaned, pCurr)
@@ -740,8 +745,8 @@ func CleanUp(points Points, deltaSpeedMax float64, speedUnits UnitsFlag) []Point
 				res = append(res, psCurr[idxPs])
 				idxRes++
 				res[idxRes].globalIdx = idxRes
-			} else {
-				// fmt.Printf("==== NOK idxPs: %v, idxRes: %v, speedCur/n1/n2: %v/%v/%v, sd0: %v, sd1: %v, dd1: %v (%v)\n", idxPs, idxRes, speedCur, speedNext1, speedNext2, speed0DeltaKts, speed1DeltaKts, diffDelta1, psCurr[idxPs].ts)
+			} else if debug {
+				fmt.Printf("Removing point, idxPs: %v, idxRes: %v, speedCur/n1: %v/%v, dd1: %v (%v)\n", idxPs, idxRes, speedCur, speedNext1, diffDelta1, psCurr[idxPs].ts)
 			}
 		}
 	}

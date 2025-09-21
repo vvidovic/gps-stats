@@ -151,7 +151,7 @@ func printStatsForFile(
 	if cleanupDeltaSpeed == 0 {
 		cleanupDeltaSpeed = stats.MsToUnits(stats.KtsToMs(5.0), speedUnits)
 	}
-	ps := stats.CleanUp(points, cleanupDeltaSpeed, speedUnits)
+	ps := stats.CleanUp(points, cleanupDeltaSpeed, speedUnits, debug)
 	points.Ps = ps
 	pointsCleanedNo := len(ps)
 
