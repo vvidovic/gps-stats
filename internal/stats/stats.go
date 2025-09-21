@@ -647,9 +647,8 @@ func headingSimple(lat1, lon1, lat2, lon2 float64) float64 {
 }
 
 // CleanUp removes points that seems not valid.
-func CleanUp(points Points, deltaSpeedMax float64, speedUnits UnitsFlag, debug bool) []Point {
+func CleanUp(points Points, deltaSpeedMax float64, speedUnits UnitsFlag, amazfit bool, debug bool) []Point {
 	psCurr := points.Ps
-	res := []Point{}
 	if len(psCurr) > 1 {
 		// Simple cleanup strategies working great for Amazfit T-Rex Pro:
 		// - if points have same timestamp, remove both points
@@ -673,40 +672,43 @@ func CleanUp(points Points, deltaSpeedMax float64, speedUnits UnitsFlag, debug b
 
 			if idxPs < psLen-1 {
 				pNext := psCurr[idxPs+1]
-				// fmt.Printf("curr / next ts: %v / %v, next - curr: %v\n", pCurr.ts, pNext.ts, pNext.ts.Sub(pCurr.ts).Seconds())
+				// fmt.Printf("====> curr / next ts: %v / %v, next - curr: %v\n", pCurr.ts, pNext.ts, pNext.ts.Sub(pCurr.ts).Seconds())
 				if pCurr.ts == pNext.ts {
 					// Skip both points if times are equal.
 					idxPs++
 					// fmt.Printf("====> skipping equal ts points, curr & next: %v & %v\n", pCurr, pNext)
 				} else {
-					psCleaned = append(psCleaned, pCurr)
-					pCurr = pNext
-
-					// // Removing this logic - some tracks (unfortunately) have quite a lot of missing points,
-					// //                       but still looks good.
-					// // Remove points "around" missing points.
-					// // Missing point is point more than 1 second after previous point.
-					// dt := pNext.ts.Sub(pCurr.ts).Seconds()
-					// if dt > 1 {
-					// 	idxNext := idxPs + 1
-					// 	idxLast := idxNext
-					// 	// fmt.Printf("====> dt > 1, idxPs, idxNext, idxLast, pNext: %v, %v, %v, %v\n", idxPs, idxNext, idxLast, pNext)
-					// 	for idxNext < psLen-1 && dt > 1 {
-					// 		p1 := psCurr[idxNext]
-					// 		p2 := psCurr[idxNext+1]
-					// 		dt = p2.ts.Sub(p1.ts).Seconds()
-					// 		idxLast = idxNext
-					// 		idxNext++
-					// 		// fmt.Printf("====> dt: %v, idxPs, idxNext, idxLast: %v, %v, %v\n", dt, idxPs, idxNext, idxLast)
-					// 	}
-					// 	// Skip points from the pCurr (first before first missing) to pLast + 2 (third after last missing)
-					// 	idxPs += idxLast - idxPs + 2
-					// 	// fmt.Printf("====> skipping points around missing points, from %v to %v\n", pCurr, psCurr[idxLast])
-					// } else {
-					// 	// fmt.Printf("adding %v\n", pCurr)
-					// 	psCleaned = append(psCleaned, pCurr)
-					// 	pCurr = pNext
-					// }
+					// This helps with some Amazfit tracks (T-Rex Pro).
+					// However, with some tracks that (unfortunately) have quite a lot of missing points,
+					// this doesn't perform good.
+					if amazfit {
+						// Remove points "around" missing points.
+						// Missing point is point more than 1 second after previous point.
+						dt := pNext.ts.Sub(pCurr.ts).Seconds()
+						if dt > 1 {
+							idxNext := idxPs + 1
+							idxLast := idxNext
+							// fmt.Printf("====> dt > 1, idxPs, idxNext, idxLast, pNext: %v, %v, %v, %v\n", idxPs, idxNext, idxLast, pNext)
+							for idxNext < psLen-1 && dt > 1 {
+								p1 := psCurr[idxNext]
+								p2 := psCurr[idxNext+1]
+								dt = p2.ts.Sub(p1.ts).Seconds()
+								idxLast = idxNext
+								idxNext++
+								// fmt.Printf("====> dt: %v, idxPs, idxNext, idxLast: %v, %v, %v\n", dt, idxPs, idxNext, idxLast)
+							}
+							// Skip points from the pCurr (first before first missing) to pLast + 2 (third after last missing)
+							idxPs += idxLast - idxPs + 2
+							// fmt.Printf("====> skipping points around missing points, from %v to %v\n", pCurr, psCurr[idxLast])
+						} else {
+							// fmt.Printf("adding %v\n", pCurr)
+							psCleaned = append(psCleaned, pCurr)
+							pCurr = pNext
+						}
+					} else {
+						psCleaned = append(psCleaned, pCurr)
+						pCurr = pNext
+					}
 				}
 			} else {
 				psCleaned = append(psCleaned, pCurr)
@@ -721,7 +723,7 @@ func CleanUp(points Points, deltaSpeedMax float64, speedUnits UnitsFlag, debug b
 		// - fast speedups are not permitted - errors
 		// - filter out series of points where the speed increases, decreases
 		//   and again increases in a short time period
-		res = append(res, psCurr[0], psCurr[1])
+		res := []Point{psCurr[0], psCurr[1]}
 		speedPrev := speed(psCurr[0], psCurr[1], speedUnits)
 		idxRes := 1
 		for idxPs := 2; idxPs < len(psCurr)-1; idxPs++ {
@@ -739,19 +741,24 @@ func CleanUp(points Points, deltaSpeedMax float64, speedUnits UnitsFlag, debug b
 			// Ignore points where the speed difference between last two points
 			//   increases more than given params.
 			// if (diffDelta1 < deltaKtsMax && diffDelta2 < deltaKtsMax) || speed0DeltaKts < 0 {
+			// if ((diffDelta1 < deltaSpeedMax) && (speed0Delta < deltaSpeedMax)) || speed0Delta < 0 {
 			if (diffDelta1 < deltaSpeedMax) || speed0Delta < 0 {
-				// fmt.Printf("OK  idxPs: %v, idxRes: %v, speedCur/n1/n2: %v/%v/%v, sd0: %v, sd1: %v, dd1: %v (%v)\n", idxPs, idxRes, speedCur, speedNext1, speedNext2, speed0DeltaKts, speed1DeltaKts, diffDelta1, psCurr[idxPs].ts)
+				// fmt.Printf("OK  idxPs: %v, idxRes: %v, speed p/cur/n: %v/%v/%v, dd1: %v (%v)\n",
+				// 	idxPs, idxRes, speedPrev, speedCur, speedNext1, diffDelta1, psCurr[idxPs].ts)
 				speedPrev = speedCur
 				res = append(res, psCurr[idxPs])
 				idxRes++
 				res[idxRes].globalIdx = idxRes
-			} else if debug {
-				fmt.Printf("Removing point, idxPs: %v, idxRes: %v, speedCur/n1: %v/%v, dd1: %v (%v)\n", idxPs, idxRes, speedCur, speedNext1, diffDelta1, psCurr[idxPs].ts)
+			} else {
+				// fmt.Printf("NOK idxPs: %v, idxRes: %v, speed p/cur/n: %v/%v/%v, dd1: %v (%v)\n",
+				// 	idxPs, idxRes, speedPrev, speedCur, speedNext1, diffDelta1, psCurr[idxPs].ts)
 			}
 		}
-	}
 
-	return res
+		return res
+	} else {
+		return []Point{}
+	}
 }
 
 // UpdateHeadings sets headings for all points. Headings are used in many other calculations.

@@ -21,6 +21,7 @@ var (
 	saveFilteredGpxFlag   *bool
 	windDirFlag           *float64
 	autoWindDirFlag       *string
+	amazfitFlag           *bool
 	debugFlag             *bool
 )
 
@@ -36,6 +37,7 @@ func main() {
 	saveFilteredGpxFlag = flag.Bool("sf", false, "Save filtered track to a new GPX file")
 	windDirFlag = flag.Float64("wd", -1, "Wind direction in degrees (0-360, degree from where it comes from)")
 	autoWindDirFlag = flag.String("awd", "", "Auto-detect wind direction (optionally specify 'jibe' or 'tack' as the more common maneuver)")
+	amazfitFlag = flag.Bool("amazfit", false, "Adjust algorithm for Amazfit T-Rex Pro watch")
 	debugFlag = flag.Bool("d", false, "Show debug information (each detected turn details)")
 
 	flag.Parse()
@@ -120,13 +122,14 @@ func main() {
 		}
 
 		for i := 0; i < len(flag.Args()); i++ {
-			printStatsForFile(flag.Args()[i], statType, speedUnits, *windDirFlag, autoWindTurn, *debugFlag)
+			printStatsForFile(flag.Args()[i], statType, speedUnits, *windDirFlag, autoWindTurn, *amazfitFlag, *debugFlag)
 		}
 	}
 }
 
 func printStatsForFile(
-	filePath string, statType stats.StatFlag, speedUnits stats.UnitsFlag, windDir float64, autoWindTurn stats.TurnType, debug bool) {
+	filePath string, statType stats.StatFlag, speedUnits stats.UnitsFlag, windDir float64, autoWindTurn stats.TurnType,
+	amazfit bool, debug bool) {
 	f, err := os.Open(filePath)
 	if err != nil {
 		return
@@ -151,7 +154,7 @@ func printStatsForFile(
 	if cleanupDeltaSpeed == 0 {
 		cleanupDeltaSpeed = stats.MsToUnits(stats.KtsToMs(5.0), speedUnits)
 	}
-	ps := stats.CleanUp(points, cleanupDeltaSpeed, speedUnits, debug)
+	ps := stats.CleanUp(points, cleanupDeltaSpeed, speedUnits, amazfit, debug)
 	points.Ps = ps
 	pointsCleanedNo := len(ps)
 
@@ -221,9 +224,13 @@ func showUsage(exitStatus int) {
 	fmt.Println("      with suffix '.filtered.gpx' (optional)")
 	fmt.Println("")
 	fmt.Println("  -cs Clean up points where speed changes are more than given number of speed units (default 5 kts)")
-	fmt.Println("       Calculation uses 4 points. It calculates 3 speeds based on those points.")
-	fmt.Println("       After that, 2 speed changes are calculated and difference between those changes is")
-	fmt.Println("       used to filter points.")
+	fmt.Println("      Calculation uses 4 points. It calculates 3 speeds based on those points.")
+	fmt.Println("      After that, 2 speed changes are calculated and difference between those changes is")
+	fmt.Println("      used to filter points.")
+	fmt.Println("")
+	fmt.Println("  -amazfit Adjust algorithm for Amazfit T-Rex Pro watch tracks.")
+	fmt.Println("           With tracks where there are almost all points (each 1 sec) but some are missing,")
+	fmt.Println("           we remove points around the missing ones and it helps to improve accurracy.")
 	fmt.Println("")
 	fmt.Println("  -d Show debug information (each detected turn details)")
 	fmt.Println("")
