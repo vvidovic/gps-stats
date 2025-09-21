@@ -72,7 +72,7 @@ func readPointSbn(r io.Reader) (Point, error) {
 	if numBytes != 2 {
 		return Point{}, errs.Errorf("Invalid number of end sequence bytes read: %d.", numBytes)
 	}
-	if bytes.Compare(endSequence, []byte("\xb0\xb3")) != 0 {
+	if !bytes.Equal(endSequence, []byte("\xb0\xb3")) {
 		return Point{}, errs.Errorf("Invalid end sequence of bytes: %v.", endSequence)
 	}
 
