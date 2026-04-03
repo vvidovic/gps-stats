@@ -18,6 +18,7 @@ var (
 	statTypeFlag          *string
 	cleanupDeltaSpeedFlag *float64
 	speedUnitsFlag        *string
+	series2sFlag          *int
 	saveFilteredGpxFlag   *bool
 	windDirFlag           *float64
 	autoWindDirFlag       *string
@@ -34,6 +35,8 @@ func main() {
 		"Clean up points where speed changes are more than given number of speed units (default 5 kts)")
 	speedUnitsFlag = flag.String("su", "kts",
 		"Set the speed units printed (kts, kmh, ms - default kts)")
+	series2sFlag = flag.Int("s2s", 0,
+		"Calculate the series of top n 2 sec speeds, provide a number of top speeds to show - can be used only with '-t all' (default)")
 	saveFilteredGpxFlag = flag.Bool("sf", false, "Save filtered track to a new GPX file")
 	windDirFlag = flag.Float64("wd", -1, "Wind direction in degrees (0-360, degree from where it comes from)")
 	autoWindDirFlag = flag.String("awd", "", "Auto-detect wind direction (optionally specify 'jibe' or 'tack' as the more common maneuver)")
@@ -122,13 +125,13 @@ func main() {
 		}
 
 		for i := 0; i < len(flag.Args()); i++ {
-			printStatsForFile(flag.Args()[i], statType, speedUnits, *windDirFlag, autoWindTurn, *amazfitFlag, *debugFlag)
+			printStatsForFile(flag.Args()[i], statType, *series2sFlag, speedUnits, *windDirFlag, autoWindTurn, *amazfitFlag, *debugFlag)
 		}
 	}
 }
 
 func printStatsForFile(
-	filePath string, statType stats.StatFlag, speedUnits stats.UnitsFlag, windDir float64, autoWindTurn stats.TurnType,
+	filePath string, statType stats.StatFlag, series2s int, speedUnits stats.UnitsFlag, windDir float64, autoWindTurn stats.TurnType,
 	amazfit bool, debug bool) {
 	f, err := os.Open(filePath)
 	if err != nil {
@@ -184,7 +187,7 @@ func printStatsForFile(
 		}
 	}
 
-	s := stats.CalculateStats(ps, statType, speedUnits, autoWindTurn, windDir, debug)
+	s := stats.CalculateStats(ps, statType, series2s, speedUnits, autoWindTurn, windDir, debug)
 
 	switch statType {
 	case stats.StatAll:
@@ -220,6 +223,8 @@ func showUsage(exitStatus int) {
 	fmt.Println("       (jibe, tack)")
 	fmt.Println("  -su Set the speed units to print (optional, default kts)")
 	fmt.Println("      (kts, kmh, ms)")
+	fmt.Println("  -s2s Set the number of 2 sec best speeds to print, can be used only if all speeds are calculated")
+	fmt.Println("      (integer number, for example: 10)")
 	fmt.Println("  -sf Save filtered points as a new GPX file without points detected as errors")
 	fmt.Println("      with suffix '.filtered.gpx' (optional)")
 	fmt.Println("")

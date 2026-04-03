@@ -9,7 +9,7 @@ Units of speed is kts (default), m/s or km/h.
 
 Results are the following stats:
 - Total Distance
-- 2 Second Peak
+- 2 Second Peak (optionally, a series of 2 seconds peaks)
 - 5x10 Average
 - Top 5 5x10 speeds
 - 15 Min

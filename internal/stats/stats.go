@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"sort"
 	"strings"
 	"time"
 
@@ -398,11 +399,13 @@ type WindDirectionStats struct {
 	alpha500m           Track
 	delta500m           Track
 	starboardSpeed2s    Track
+	starboardSpeedNx2s  []Track
 	starboardSpeed5x10s []Track
 	starboardSpeed100m  Track
 	starboardAlpha500m  Track
 	starboardDelta500m  Track
 	portSpeed2s         Track
+	portSpeedNx2s       []Track
 	portSpeed5x10s      []Track
 	portSpeed100m       Track
 	portAlpha500m       Track
@@ -414,6 +417,7 @@ type Stats struct {
 	totalDistance float64
 	totalDuration float64
 	speed2s       Track
+	speedNx2s     []Track
 	speed5x10s    []Track
 	speed15m      Track
 	speed1h       Track
@@ -491,11 +495,20 @@ func (s Stats) TxtStats() string {
 	fmt.Fprintf(&b, "100m peak:          %s\n", s.speed100m.TxtLine())
 	fmt.Fprintf(&b, "Nautical Mile:      %s\n", s.speed1NM.TxtLine())
 	fmt.Fprintf(&b, "Alpha 500:          %s\n", s.wDirStats.alpha500m.TxtLine())
-
 	if s.wDirKnown {
 		fmt.Fprintf(&b, "Delta 500:          %s\n", s.wDirStats.delta500m.TxtLine())
+	}
+	if len(s.speedNx2s) > 0 {
+		fmt.Fprintf(&b, "Top %d 2 Second Peaks:\n", len(s.speedNx2s))
+
+		for i := 0; i < len(s.speedNx2s); i++ {
+			fmt.Fprintf(&b, "  %02d: %s\n", i+1, s.speedNx2s[i].TxtLine())
+		}
+	}
+
+	if s.wDirKnown {
 		fmt.Fprintf(&b, "\n")
-		fmt.Fprintf(&b, "Starboard 2s:       %s\n", s.wDirStats.starboardSpeed2s.TxtLine())
+		fmt.Fprintf(&b, "Starboard 2s Peak:  %s\n", s.wDirStats.starboardSpeed2s.TxtLine())
 		fmt.Fprintf(&b, "Starboard 5x10s:    %06.3f %s\n", CalcTracksAvg(s.wDirStats.starboardSpeed5x10s), s.speedUnits)
 		fmt.Fprintf(&b, "  Top 1 5x10 speed: %s\n", s.wDirStats.starboardSpeed5x10s[0].TxtLine())
 		fmt.Fprintf(&b, "  Top 2 5x10 speed: %s\n", s.wDirStats.starboardSpeed5x10s[1].TxtLine())
@@ -505,8 +518,16 @@ func (s Stats) TxtStats() string {
 		fmt.Fprintf(&b, "Starboard 100m:     %s\n", s.wDirStats.starboardSpeed100m.TxtLine())
 		fmt.Fprintf(&b, "Starboard Alpha:    %s\n", s.wDirStats.starboardAlpha500m.TxtLine())
 		fmt.Fprintf(&b, "Starboard Delta:    %s\n", s.wDirStats.starboardDelta500m.TxtLine())
+		if len(s.wDirStats.starboardSpeedNx2s) > 0 {
+			fmt.Fprintf(&b, "Top %d Starboard 2 Second:\n", len(s.wDirStats.starboardSpeedNx2s))
+
+			for i := 0; i < len(s.wDirStats.starboardSpeedNx2s); i++ {
+				fmt.Fprintf(&b, "  %02d: %s\n", i+1, s.wDirStats.starboardSpeedNx2s[i].TxtLine())
+			}
+		}
+
 		fmt.Fprintf(&b, "\n")
-		fmt.Fprintf(&b, "Port 2s:            %s\n", s.wDirStats.portSpeed2s.TxtLine())
+		fmt.Fprintf(&b, "Port 2s Peaks:      %s\n", s.wDirStats.portSpeed2s.TxtLine())
 		fmt.Fprintf(&b, "Port 5x10s:         %06.3f %s\n", CalcTracksAvg(s.wDirStats.portSpeed5x10s), s.speedUnits)
 		fmt.Fprintf(&b, "  Top 1 5x10 speed: %s\n", s.wDirStats.portSpeed5x10s[0].TxtLine())
 		fmt.Fprintf(&b, "  Top 2 5x10 speed: %s\n", s.wDirStats.portSpeed5x10s[1].TxtLine())
@@ -516,7 +537,15 @@ func (s Stats) TxtStats() string {
 		fmt.Fprintf(&b, "Port 100m:          %s\n", s.wDirStats.portSpeed100m.TxtLine())
 		fmt.Fprintf(&b, "Port Alpha:         %s\n", s.wDirStats.portAlpha500m.TxtLine())
 		fmt.Fprintf(&b, "Port Delta:         %s\n", s.wDirStats.portDelta500m.TxtLine())
+		if len(s.wDirStats.portSpeedNx2s) > 0 {
+			fmt.Fprintf(&b, "Top %d Port 2 Second:\n", len(s.wDirStats.portSpeedNx2s))
+
+			for i := 0; i < len(s.wDirStats.portSpeedNx2s); i++ {
+				fmt.Fprintf(&b, "  %02d: %s\n", i+1, s.wDirStats.portSpeedNx2s[i].TxtLine())
+			}
+		}
 	}
+
 	return b.String()
 }
 
@@ -726,6 +755,7 @@ func CleanUp(points Points, deltaSpeedMax float64, speedUnits UnitsFlag, amazfit
 		res := []Point{psCurr[0], psCurr[1]}
 		speedPrev := speed(psCurr[0], psCurr[1], speedUnits)
 		idxRes := 1
+		// fmt.Printf("Time,TrackSpeed,DT,Dist(m),SpeedCalc\n")
 		for idxPs := 2; idxPs < len(psCurr)-1; idxPs++ {
 			// Compare speed changes between 3 points
 			// (previous, current & next point).
@@ -737,6 +767,7 @@ func CleanUp(points Points, deltaSpeedMax float64, speedUnits UnitsFlag, amazfit
 			speed1Delta := speedNext1 - speedCur
 			// 1 differences between speed changes
 			diffDelta1 := speed0Delta - speed1Delta
+			// fmt.Printf("%v,%f,%v,%v,%v\n", psCurr[idxPs].ts, *psCurr[idxPs].speed, psCurr[idxPs].ts.Sub(psCurr[idxPs-1].ts).Seconds(), distance(psCurr[idxPs-1], psCurr[idxPs]), speed(psCurr[idxPs-1], psCurr[idxPs], speedUnits))
 
 			// Ignore points where the speed difference between last two points
 			//   increases more than given params.
@@ -769,7 +800,7 @@ func UpdateHeadings(ps []Point) {
 }
 
 // CalculateStats calculate statistics from cleaned up points.
-func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, preferedTurn TurnType, windDir float64, debug bool) Stats {
+func CalculateStats(ps []Point, statType StatFlag, series2s int, speedUnits UnitsFlag, preferedTurn TurnType, windDir float64, debug bool) Stats {
 	// Calculate heading for each point.
 	for i := 1; i < len(ps); i++ {
 		ps[i].heading = heading(ps[i-1], ps[i])
@@ -861,10 +892,20 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, prefere
 			}
 			// fmt.Printf(" ===> %4d (%s): t: %v, st: %v, valid: %v\n", i, ps[i].ts, trackTurn500m, subtrackTurn500m, subtrackTurn500m.valid)
 
+			// Debug detailed values for each point.
+			if track2s.valid {
+				if debug {
+					fmt.Printf("2s speed: %s", track2s)
+				}
+			}
+
 			// If any of calculated statistics is prepared (valid) and the statistic
 			//   is a highest one, save it.
 			if track2s.valid && res.speed2s.speed < track2s.speed {
 				res.speed2s = track2s
+			}
+			if statType == StatAll && track2s.valid && series2s > 0 {
+				res.speedNx2s = collectTopSpeedTracks(res.speedNx2s, track2s, series2s)
 			}
 			if track15m.valid && res.speed15m.speed < track15m.speed {
 				res.speed15m = track15m
@@ -883,12 +924,18 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, prefere
 			if track2s.TackSide() == TackStarboard && track2s.valid && res.wDirStats.starboardSpeed2s.speed < track2s.speed {
 				res.wDirStats.starboardSpeed2s = track2s
 			}
+			if statType == StatAll && track2s.TackSide() == TackStarboard && track2s.valid && series2s > 0 {
+				res.wDirStats.starboardSpeedNx2s = collectTopSpeedTracks(res.wDirStats.starboardSpeedNx2s, track2s, series2s)
+			}
 			if track100m.TackSide() == TackStarboard && track100m.valid && res.wDirStats.starboardSpeed100m.speed < track100m.speed {
 				res.wDirStats.starboardSpeed100m = track100m
 			}
 			// Save the best port stats
 			if track2s.TackSide() == TackPort && track2s.valid && res.wDirStats.portSpeed2s.speed < track2s.speed {
 				res.wDirStats.portSpeed2s = track2s
+			}
+			if statType == StatAll && track2s.TackSide() == TackPort && track2s.valid && series2s > 0 {
+				res.wDirStats.portSpeedNx2s = collectTopSpeedTracks(res.wDirStats.portSpeedNx2s, track2s, series2s)
 			}
 			if track100m.TackSide() == TackPort && track100m.valid && res.wDirStats.portSpeed100m.speed < track100m.speed {
 				res.wDirStats.portSpeed100m = track100m
@@ -1035,6 +1082,22 @@ func CalculateStats(ps []Point, statType StatFlag, speedUnits UnitsFlag, prefere
 
 	}
 	return res
+}
+
+// collectTopSpeedTracks collects a defined number of top speed tracks
+func collectTopSpeedTracks(collectedTracks []Track, currTrack Track, numOfTopSpeeds int) []Track {
+	if len(collectedTracks) < numOfTopSpeeds {
+		collectedTracks = append(collectedTracks, currTrack)
+		sort.Slice(collectedTracks, func(i, j int) bool {
+			return collectedTracks[i].speed > collectedTracks[j].speed
+		})
+	} else if collectedTracks[numOfTopSpeeds-1].speed < currTrack.speed {
+		collectedTracks[numOfTopSpeeds-1] = currTrack
+		sort.Slice(collectedTracks, func(i, j int) bool {
+			return collectedTracks[i].speed > collectedTracks[j].speed
+		})
+	}
+	return collectedTracks
 }
 
 // collectTurnTracks gets all track segments with exactly 1 tack change

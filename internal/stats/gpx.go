@@ -102,6 +102,7 @@ func ReadPointsGpx(r io.Reader) (Points, error) {
 			points := gpx.Trks[trkIdx].Trksegs[segIdx].Trkpts
 			for ptIdx := 0; ptIdx < len(points); ptIdx++ {
 				p, err := readPointGpx(points[ptIdx])
+
 				if err != nil {
 					res.Ps = ps
 					return res, err
