@@ -1,6 +1,6 @@
 # gps-stats
 
-`gps-stats` is a command-line tool that can read and analyze GPS data in a
+`gps-stats` is a command-line tool that can read, analyze and clean GPS data in a
 `SBN` or `GPX` format.
 
 Multiple files can be analyzed at once.
@@ -19,11 +19,61 @@ Results are the following stats:
 - Alpha 500
 - Delta 500 (Tack 500 m, calculated only when starboard and port stats are separated)
 
+## Usage flags
+
+```sh
+Usage:
+ gps-stats [Flags] GPS_data_file1 [GPS_data_file2 ...]
+
+Parses 1 or more GPS data files (SBN or GPX)
+
+Flags:
+  -h Show usage (optional)
+  -v Show version (optional)
+  -t Set the statistics type to print (optional, default all)
+     (all, dist, dur, 2s, 10sAvg, 10s1, 10s2, 10s3, 10s4, 10s5, 15m, 1h, 100m, 1nm, alpha)
+  -wd Set the wind direction in degrees (0-360, degree from where it comes from) (optional)
+  -awd Auto-detect wind direction (optional, default jibe)
+       (jibe, tack)
+  -su Set the speed units to print (optional, default kts)
+      (kts, kmh, ms)
+  -s2s Set the number of 2 sec best speeds to print, can be used only if all speeds are calculated
+      (integer number, for example: 10)
+  -sf Save filtered points as a new GPX file without points detected as errors
+      with suffix '.filtered.gpx' (optional)
+
+  -cs Clean up points where speed changes are more than given number of speed units (default 5 kts)
+      Calculation uses 4 points. It calculates 3 speeds based on those points.
+      After that, 2 speed changes are calculated and difference between those changes is
+      used to filter points.
+
+  -amazfit Adjust algorithm for Amazfit T-Rex Pro watch tracks.
+           With tracks where there are almost all points (each 1 sec) but some are missing,
+           we remove points around the missing ones and it helps to improve accurracy.
+
+  -d Show debug information (each detected turn details)
+
+Examples:
+ gps-stats my_gps_data.SBN
+   - runs analysis of the SBN data
+
+ gps-stats -cs 7 my_gps_data.gpx
+   - runs analysis of the SBN data with custom clean up settings
+
+ gps-stats -t=1nm *.SBN *.gpx
+   - runs analysis of multiple SBN & GPX data only for 1 NM statistics
+
+ gps-stats -sf my_gps_data.GPX
+   - runs analysis of the GPX data and save a copy of track with filtered points detected as errors
+```
+
 ## Example usage
 
 Here are few example runs of the gps-stats app:
-```
-$ gps-stats ../gps-data/VVidovic_113200915_20221014_140124.SBN
+```sh
+$ gps-stats -sf ../gps-data/VVidovic_113200915_20221014_140124.SBN
+Filtered GPX file '../gps-data/VVidovic_113200915_20221014_140124.SBN.filtered.gpx' saved.
+
 Found 9341 track points in 'VVidovic_113200915_20221014_140124.SBN', after cleanup 9110 points left.
 Total Distance:     48.610 km
 Total Duration:     02.675 h
