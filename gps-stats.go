@@ -13,17 +13,20 @@ import (
 )
 
 var (
-	helpFlag              *bool
-	versionFlag           *bool
-	statTypeFlag          *string
-	cleanupDeltaSpeedFlag *float64
-	speedUnitsFlag        *string
-	series2sFlag          *int
-	saveFilteredGpxFlag   *bool
-	windDirFlag           *float64
-	autoWindDirFlag       *string
-	amazfitFlag           *bool
-	debugFlag             *bool
+	helpFlag                 *bool
+	versionFlag              *bool
+	statTypeFlag             *string
+	cleanupDeltaSpeedFlag    *float64
+	speedUnitsFlag           *string
+	series2sFlag             *int
+	saveFilteredGpxFlag      *bool
+	windDirFlag              *float64
+	autoWindDirFlag          *string
+	amazfitFlag              *bool
+	debugFlag                *bool
+	speedRunsDetailsFlag     *bool
+	speedRunsDetailsNumFlag  *int
+	speedRunsDetailsSecsFlag *float64
 )
 
 func main() {
@@ -41,6 +44,9 @@ func main() {
 	windDirFlag = flag.Float64("wd", -1, "Wind direction in degrees (0-360, degree from where it comes from)")
 	autoWindDirFlag = flag.String("awd", "", "Auto-detect wind direction (optionally specify 'jibe' or 'tack' as the more common maneuver)")
 	amazfitFlag = flag.Bool("amazfit", false, "Adjust algorithm for Amazfit T-Rex Pro watch")
+	speedRunsDetailsFlag = flag.Bool("speed-runs-details", false, "Show detailed analysis of top speed runs")
+	speedRunsDetailsNumFlag = flag.Int("speed-runs-details-num", 5, "Set the number of top speed runs to analyze when -speed-runs-details is used")
+	speedRunsDetailsSecsFlag = flag.Float64("speed-runs-details-secs", 10, "Set the speed-run analysis window in seconds and duplicate filtering interval")
 	debugFlag = flag.Bool("d", false, "Show debug information (each detected turn details)")
 
 	flag.Parse()
@@ -114,6 +120,18 @@ func main() {
 			autoWindTurn = stats.TurnTack
 		default:
 			fmt.Printf("Invalid flag value for -awd: '%s'.\n", *autoWindDirFlag)
+			showUsage(2)
+			return
+		}
+
+		if *speedRunsDetailsNumFlag < 1 {
+			fmt.Printf("Invalid flag value for -speed-runs-details-num: %d. It must be at least 1.\n", *speedRunsDetailsNumFlag)
+			showUsage(2)
+			return
+		}
+
+		if *speedRunsDetailsSecsFlag < 2 {
+			fmt.Printf("Invalid flag value for -speed-runs-details-secs: %.1f. It must be at least 2 seconds.\n", *speedRunsDetailsSecsFlag)
 			showUsage(2)
 			return
 		}
@@ -194,6 +212,9 @@ func printStatsForFile(
 		fmt.Printf("Found %d track points in '%s', after cleanup %d points left.\n",
 			pointsNo, fileName, pointsCleanedNo)
 		fmt.Print(s.TxtStats())
+		if *speedRunsDetailsFlag {
+			fmt.Print(stats.SpeedRunsDetails(ps, *speedRunsDetailsNumFlag, *speedRunsDetailsSecsFlag, speedUnits, s.WindDirectionKnown(), s.WindDirection()))
+		}
 	default:
 		fmt.Printf("%s (%s)", s.TxtSingleStat(statType), fileName)
 	}
@@ -236,6 +257,10 @@ func showUsage(exitStatus int) {
 	fmt.Println("  -amazfit Adjust algorithm for Amazfit T-Rex Pro watch tracks.")
 	fmt.Println("           With tracks where there are almost all points (each 1 sec) but some are missing,")
 	fmt.Println("           we remove points around the missing ones and it helps to improve accurracy.")
+	fmt.Println("")
+	fmt.Println("  -speed-runs-details Show detailed analysis of top speed runs")
+	fmt.Println("  -speed-runs-details-num Set the number of top speed runs to analyze (default 5)")
+	fmt.Println("  -speed-runs-details-secs Set the analysis window and duplicate filtering interval in seconds (default 10)")
 	fmt.Println("")
 	fmt.Println("  -d Show debug information (each detected turn details)")
 	fmt.Println("")

@@ -51,7 +51,12 @@ Flags:
            With tracks where there are almost all points (each 1 sec) but some are missing,
            we remove points around the missing ones and it helps to improve accurracy.
 
+  -speed-runs-details Show detailed analysis of top speed runs
+  -speed-runs-details-num Set the number of top speed runs to analyze (default 5)
+  -speed-runs-details-secs Set the analysis window and duplicate filtering interval in seconds (default 10)
+
   -d Show debug information (each detected turn details)
+
 
 Examples:
  gps-stats my_gps_data.SBN
@@ -159,6 +164,62 @@ Port 5x10s:         16.388 kts
 Port 100m:          16.617 kts (12 sec, 102.582 m, 2022-10-14 14:36:21 +0000 UTC, port)
 Port Alpha:         13.759 kts (40 sec, 283.123 m, 2022-10-14 15:01:23 +0000 UTC, port)
 Port Delta:         11.623 kts (21 sec, 125.565 m, 2022-10-14 15:10:28 +0000 UTC, port)
+
+Speed Runs Details:
+  Settings:
+    Runs shown:       5
+    Analysis window:  10 sec
+    Thresholds:       peak-1 / peak-2 / peak-3
+
+  Run 1:
+    Peak:              17.663 kts (2 sec, 18.174 m, 2022-10-14 14:40:37 +0000 UTC, starboard)
+    10s around peak:   17.142 kts (10 sec, 88.188 m, 2022-10-14 14:40:35 +0000 UTC, starboard)
+    Position:          43.928492, 15.418879 → 43.927781, 15.418391
+    Heading:           206.4° avg, ±1.4° stddev, 204.1°–208.5° range
+    Wind-relative:     123.4° off wind (wind 329.8°)
+    Acceleration:      15.9→17.7 kts in 5.0 sec / 44.1 m (0.35 kts/s)
+    Above thresholds:  >16.7 kts: 10.0 sec / 88.2 m, >15.7 kts: 17.0 sec / 146.3 m, >14.7 kts: 18.0 sec / 154.2 m
+    Stability Score:   92/100 (heading 37/40, retention 35/35, acceleration 20/25)
+
+  Run 2:
+    Peak:              17.442 kts (2 sec, 17.946 m, 2022-10-14 14:36:27 +0000 UTC, port)
+    10s around peak:   16.729 kts (10 sec, 86.064 m, 2022-10-14 14:36:22 +0000 UTC, port)
+    Position:          43.937031, 15.417816 → 43.937411, 15.418747
+    Heading:           059.7° avg, ±5.4° stddev, 052.1°–067.7° range
+    Wind-relative:     89.9° off wind (wind 329.8°)
+    Acceleration:      15.7→17.4 kts in 13.0 sec / 110.6 m (0.13 kts/s)
+    Above thresholds:  >16.4 kts: 7.0 sec / 61.2 m, >15.4 kts: 23.0 sec / 192.3 m, >14.4 kts: 25.0 sec / 207.5 m
+    Stability Score:   66/100 (heading 15/40, retention 31/35, acceleration 20/25)
+
+  Run 3:
+    Peak:              17.216 kts (2 sec, 17.714 m, 2022-10-14 14:41:55 +0000 UTC, port)
+    10s around peak:   16.635 kts (10 sec, 85.577 m, 2022-10-14 14:41:48 +0000 UTC, port)
+    Position:          43.928004, 15.420211 → 43.928399, 15.421126
+    Heading:           059.5° avg, ±2.5° stddev, 055.4°–063.8° range
+    Wind-relative:     89.7° off wind (wind 329.8°)
+    Acceleration:      15.5→17.2 kts in 9.0 sec / 77.1 m (0.19 kts/s)
+    Above thresholds:  >16.2 kts: 8.0 sec / 69.3 m, >15.2 kts: 11.0 sec / 93.5 m, >14.2 kts: 32.0 sec / 256.2 m
+    Stability Score:   90/100 (heading 31/40, retention 34/35, acceleration 25/25)
+
+  Run 4:
+    Peak:              17.215 kts (2 sec, 17.712 m, 2022-10-14 14:48:32 +0000 UTC, starboard)
+    10s around peak:   16.679 kts (10 sec, 85.803 m, 2022-10-14 14:48:27 +0000 UTC, starboard)
+    Position:          43.926364, 15.430365 → 43.925693, 15.429840
+    Heading:           209.5° avg, ±3.9° stddev, 198.3°–214.1° range
+    Wind-relative:     120.2° off wind (wind 329.8°)
+    Acceleration:      15.5→17.2 kts in 7.0 sec / 60.1 m (0.25 kts/s)
+    Above thresholds:  >16.2 kts: 7.0 sec / 61.4 m, >15.2 kts: 10.0 sec / 85.8 m, >14.2 kts: 32.0 sec / 261.7 m
+    Stability Score:   77/100 (heading 24/40, retention 35/35, acceleration 18/25)
+
+  Run 5:
+    Peak:              17.107 kts (2 sec, 17.601 m, 2022-10-14 14:42:44 +0000 UTC, port)
+    10s around peak:   16.175 kts (10 sec, 83.210 m, 2022-10-14 14:42:38 +0000 UTC, port)
+    Position:          43.929907, 15.424378 → 43.930397, 15.425158
+    Heading:           048.8° avg, ±4.3° stddev, 042.0°–056.5° range
+    Wind-relative:     79.0° off wind (wind 329.8°)
+    Acceleration:      15.4→17.1 kts in 16.0 sec / 131.7 m (0.11 kts/s)
+    Above thresholds:  >16.1 kts: 5.0 sec / 43.1 m, >15.1 kts: 20.0 sec / 163.9 m, >14.1 kts: 36.0 sec / 290.3 m
+    Stability Score:   64/100 (heading 21/40, retention 25/35, acceleration 18/25)
 ```
 
 ## Build
