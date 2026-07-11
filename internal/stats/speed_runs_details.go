@@ -19,30 +19,46 @@ func (s Stats) WindDirectionKnown() bool {
 }
 
 type speedRunDetails struct {
-	peakTrack      Track
-	windowTrack    Track
-	start          Point
-	end            Point
-	headingAvg     float64
-	headingStd     float64
-	headingMin     float64
-	headingMax     float64
-	windRelative   float64
-	windDirKnown   bool
-	windDir        float64
-	accelFromSpeed float64
-	accelToSpeed   float64
-	accelDuration  float64
-	accelDistance  float64
-	accelMean      float64
-	thresholds     []speedRunThresholdDetails
-	stability      speedRunStabilityScore
+	peakTrack        Track
+	windowTrack      Track
+	start            Point
+	end              Point
+	samples          []speedRunSample
+	headingEvolution speedRunHeadingEvolution
+	headingAvg       float64
+	headingStd       float64
+	headingMin       float64
+	headingMax       float64
+	windRelative     float64
+	windDirKnown     bool
+	windDir          float64
+	accelFromSpeed   float64
+	accelToSpeed     float64
+	accelDuration    float64
+	accelDistance    float64
+	accelMean        float64
+	thresholds       []speedRunThresholdDetails
+	stability        speedRunStabilityScore
 }
 
 type speedRunThresholdDetails struct {
 	threshold float64
 	duration  float64
 	distance  float64
+}
+
+type speedRunSample struct {
+	speed   float64
+	heading float64
+	missing bool
+}
+
+type speedRunHeadingEvolution struct {
+	firstHalfAvg  float64
+	secondHalfAvg float64
+	drift         float64
+	trend         float64
+	valid         bool
 }
 
 type speedRunStabilityScore struct {
@@ -74,9 +90,16 @@ func SpeedRunsDetails(ps []Point, numRuns int, windowSecs float64, speedUnits Un
 	for i, run := range runs {
 		fmt.Fprintf(&b, "  Run %d:\n", i+1)
 		fmt.Fprintf(&b, "    Peak:              %s\n", run.peakTrack.TxtLine())
-		fmt.Fprintf(&b, "    %-18s %s\n", fmt.Sprintf("%.0fs around peak:", windowSecs), run.windowTrack.TxtLine())
 		fmt.Fprintf(&b, "    Position:          %.6f, %.6f → %.6f, %.6f\n", run.start.lat, run.start.lon, run.end.lat, run.end.lon)
 		fmt.Fprintf(&b, "    Heading:           %05.1f° avg, ±%.1f° stddev, %05.1f°–%05.1f° range\n", run.headingAvg, run.headingStd, run.headingMin, run.headingMax)
+		fmt.Fprintf(&b, "    %-18s %s\n", fmt.Sprintf("%.0fs around peak:", windowSecs), run.windowTrack.TxtLine())
+		fmt.Fprintf(&b, "    %-18s %s\n", fmt.Sprintf("%.0fs speeds:", windowSecs), formatSpeedSamples(run.samples))
+		fmt.Fprintf(&b, "    %-18s %s\n", fmt.Sprintf("%.0fs headings:", windowSecs), formatHeadingSamples(run.samples))
+		if run.headingEvolution.valid {
+			fmt.Fprintf(&b, "    Heading evolution: %.1f° → %.1f° (%+.1f°, %+.2f°/s)\n",
+				run.headingEvolution.firstHalfAvg, run.headingEvolution.secondHalfAvg,
+				run.headingEvolution.drift, run.headingEvolution.trend)
+		}
 		if run.windDirKnown {
 			fmt.Fprintf(&b, "    Wind-relative:     %.1f° off wind (wind %.1f°)\n", run.windRelative, run.windDir)
 		}
@@ -137,6 +160,8 @@ func findSpeedRuns(ps []Point, numRuns int, windowSecs float64, speedUnits Units
 
 		start := windowTrack.ps[0]
 		end := windowTrack.ps[len(windowTrack.ps)-1]
+		samples := speedRunSamples(windowTrack, speedUnits)
+		headingEvolution := computeHeadingEvolution(samples)
 		headingAvg, headingStd, headingMin, headingMax := headingStats(windowTrack.ps)
 
 		accelFromSpeed, accelDuration, accelDistance, accelMean := accelerationDetails(ps, peak, speedUnits)
@@ -144,23 +169,25 @@ func findSpeedRuns(ps []Point, numRuns int, windowSecs float64, speedUnits Units
 		stability := stabilityScore(ps, peak, windowTrack, headingStd, windowSecs, speedUnits)
 
 		run := speedRunDetails{
-			peakTrack:      peak,
-			windowTrack:    windowTrack,
-			start:          start,
-			end:            end,
-			headingAvg:     headingAvg,
-			headingStd:     headingStd,
-			headingMin:     headingMin,
-			headingMax:     headingMax,
-			windDirKnown:   windDirKnown,
-			windDir:        windDir,
-			accelFromSpeed: accelFromSpeed,
-			accelToSpeed:   peak.speed,
-			accelDuration:  accelDuration,
-			accelDistance:  accelDistance,
-			accelMean:      accelMean,
-			thresholds:     thresholds,
-			stability:      stability,
+			peakTrack:        peak,
+			windowTrack:      windowTrack,
+			start:            start,
+			end:              end,
+			samples:          samples,
+			headingEvolution: headingEvolution,
+			headingAvg:       headingAvg,
+			headingStd:       headingStd,
+			headingMin:       headingMin,
+			headingMax:       headingMax,
+			windDirKnown:     windDirKnown,
+			windDir:          windDir,
+			accelFromSpeed:   accelFromSpeed,
+			accelToSpeed:     peak.speed,
+			accelDuration:    accelDuration,
+			accelDistance:    accelDistance,
+			accelMean:        accelMean,
+			thresholds:       thresholds,
+			stability:        stability,
 		}
 		if windDirKnown && headingAvg >= 0 {
 			run.windRelative = absAngleDiff(headingAvg, windDir)
@@ -252,6 +279,181 @@ func headingStats(ps []Point) (float64, float64, float64, float64) {
 	maxHeading := normalizeAngle(avg + maxDelta)
 
 	return avg, std, minHeading, maxHeading
+}
+
+func speedRunSamples(track Track, speedUnits UnitsFlag) []speedRunSample {
+	if len(track.ps) < 2 {
+		return nil
+	}
+
+	samples := []speedRunSample{}
+	startTime := track.ps[0].ts
+	lastSampleSecond := -1
+	for i := 1; i < len(track.ps); i++ {
+		dt := track.ps[i].ts.Sub(track.ps[i-1].ts).Seconds()
+		if dt <= 0 {
+			continue
+		}
+
+		// Keep the output readable: at most one value per second. When there is a
+		// gap in the recording, mark the missing second(s) instead of pretending
+		// that we have a clean 1 Hz sequence.
+		sec := int(math.Round(track.ps[i].ts.Sub(startTime).Seconds()))
+		if sec == lastSampleSecond {
+			continue
+		}
+		if lastSampleSecond >= 0 && sec-lastSampleSecond > 1 {
+			missingCount := sec - lastSampleSecond - 1
+			for missing := 0; missing < missingCount; missing++ {
+				samples = append(samples, speedRunSample{missing: true})
+			}
+		}
+
+		samples = append(samples, speedRunSample{
+			speed:   speed(track.ps[i-1], track.ps[i], speedUnits),
+			heading: track.ps[i].heading,
+		})
+		lastSampleSecond = sec
+	}
+
+	return samples
+}
+
+func formatSpeedSamples(samples []speedRunSample) string {
+	if len(samples) == 0 {
+		return "-"
+	}
+
+	maxRounded := -1.0
+	for _, sample := range samples {
+		if sample.missing {
+			continue
+		}
+		rounded := roundTo(sample.speed, 0.1)
+		if rounded > maxRounded {
+			maxRounded = rounded
+		}
+	}
+
+	parts := []string{}
+	for _, sample := range samples {
+		if sample.missing {
+			parts = append(parts, "—")
+			continue
+		}
+		rounded := roundTo(sample.speed, 0.1)
+		if rounded == maxRounded {
+			parts = append(parts, fmt.Sprintf("[%.1f]", rounded))
+		} else {
+			parts = append(parts, fmt.Sprintf("%.1f", rounded))
+		}
+	}
+	return strings.Join(parts, " → ")
+}
+
+func formatHeadingSamples(samples []speedRunSample) string {
+	if len(samples) == 0 {
+		return "-"
+	}
+
+	parts := []string{}
+	for _, sample := range samples {
+		if sample.missing || sample.heading < 0 {
+			parts = append(parts, "—")
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%.0f°", sample.heading))
+	}
+	return strings.Join(parts, " → ")
+}
+
+func computeHeadingEvolution(samples []speedRunSample) speedRunHeadingEvolution {
+	validHeadings := []float64{}
+	validIndexes := []float64{}
+	for i, sample := range samples {
+		if sample.missing || sample.heading < 0 {
+			continue
+		}
+		validHeadings = append(validHeadings, sample.heading)
+		validIndexes = append(validIndexes, float64(i))
+	}
+	if len(validHeadings) < 2 {
+		return speedRunHeadingEvolution{}
+	}
+
+	split := len(validHeadings) / 2
+	if split == 0 || split == len(validHeadings) {
+		return speedRunHeadingEvolution{}
+	}
+
+	firstHalfAvg := circularMean(validHeadings[:split])
+	secondHalfAvg := circularMean(validHeadings[split:])
+	drift := signedAngleDiff(secondHalfAvg, firstHalfAvg)
+	trend := headingTrend(validIndexes, validHeadings)
+
+	return speedRunHeadingEvolution{
+		firstHalfAvg:  firstHalfAvg,
+		secondHalfAvg: secondHalfAvg,
+		drift:         drift,
+		trend:         trend,
+		valid:         true,
+	}
+}
+
+func headingTrend(indexes []float64, headings []float64) float64 {
+	if len(indexes) != len(headings) || len(indexes) < 2 {
+		return 0
+	}
+
+	base := headings[0]
+	unwrapped := make([]float64, len(headings))
+	for i, h := range headings {
+		unwrapped[i] = base + signedAngleDiff(h, base)
+	}
+
+	xMean := mean(indexes)
+	yMean := mean(unwrapped)
+	numerator := 0.0
+	denominator := 0.0
+	for i := range indexes {
+		dx := indexes[i] - xMean
+		numerator += dx * (unwrapped[i] - yMean)
+		denominator += dx * dx
+	}
+	if denominator == 0 {
+		return 0
+	}
+	return numerator / denominator
+}
+
+func circularMean(angles []float64) float64 {
+	if len(angles) == 0 {
+		return -1
+	}
+
+	sinSum := 0.0
+	cosSum := 0.0
+	for _, angle := range angles {
+		rad := angle * math.Pi / 180
+		sinSum += math.Sin(rad)
+		cosSum += math.Cos(rad)
+	}
+	return normalizeAngle(math.Atan2(sinSum, cosSum) * 180 / math.Pi)
+}
+
+func mean(values []float64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+	sum := 0.0
+	for _, value := range values {
+		sum += value
+	}
+	return sum / float64(len(values))
+}
+
+func roundTo(value, precision float64) float64 {
+	return math.Round(value/precision) * precision
 }
 
 func accelerationDetails(ps []Point, peak Track, speedUnits UnitsFlag) (float64, float64, float64, float64) {
