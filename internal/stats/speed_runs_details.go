@@ -80,7 +80,7 @@ func SpeedRunsDetails(ps []Point, numRuns int, windowSecs float64, speedUnits Un
 		if run.windDirKnown {
 			fmt.Fprintf(&b, "    Wind-relative:     %.1f° off wind (wind %.1f°)\n", run.windRelative, run.windDir)
 		}
-		fmt.Fprintf(&b, "    Acceleration:      %.1f→%.1f %s in %.1f sec / %.1f m (%.2f %s/s)\n",
+		fmt.Fprintf(&b, "    Acceleration:      %.1f → %.1f %s in %.1f sec / %.1f m (%.2f %s/s)\n",
 			run.accelFromSpeed, run.accelToSpeed, speedUnits, run.accelDuration, run.accelDistance, run.accelMean, speedUnits)
 		fmt.Fprintf(&b, "    Above thresholds:  ")
 		for tIdx, threshold := range run.thresholds {
