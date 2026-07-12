@@ -173,51 +173,61 @@ Speed Runs Details:
 
   Run 1:
     Peak:              17.663 kts (2 sec, 18.174 m, 2022-10-14 14:40:37 +0000 UTC, starboard)
-    10s around peak:   17.142 kts (10 sec, 88.188 m, 2022-10-14 14:40:35 +0000 UTC, starboard)
     Position:          43.928492, 15.418879 → 43.927781, 15.418391
     Heading:           206.4° avg, ±1.4° stddev, 204.1°–208.5° range
-    Wind-relative:     123.4° off wind (wind 329.8°)
-    Acceleration:      15.9→17.7 kts in 5.0 sec / 44.1 m (0.35 kts/s)
+    10s around peak:   17.142 kts (10 sec, 88.188 m, 2022-10-14 14:40:35 +0000 UTC, starboard)
+    10s speeds:        16.8 → 17.4 → [17.7] → 17.6 → 17.3 → 17.2 → 17.1 → 16.9 → 16.7 → 16.7
+    10s headings:      206° → 205° → 204° → 204° → 206° → 207° → 207° → 208° → 208° → 209°
+    Heading evolution: 205.0° → 207.7° (+2.7°, +0.44°/s)
+    Acceleration:      15.9 → 17.7 kts in 5.0 sec / 44.1 m (0.35 kts/s)
     Above thresholds:  >16.7 kts: 10.0 sec / 88.2 m, >15.7 kts: 17.0 sec / 146.3 m, >14.7 kts: 18.0 sec / 154.2 m
     Stability Score:   92/100 (heading 37/40, retention 35/35, acceleration 20/25)
 
   Run 2:
     Peak:              17.442 kts (2 sec, 17.946 m, 2022-10-14 14:36:27 +0000 UTC, port)
-    10s around peak:   16.729 kts (10 sec, 86.064 m, 2022-10-14 14:36:22 +0000 UTC, port)
     Position:          43.937031, 15.417816 → 43.937411, 15.418747
     Heading:           059.7° avg, ±5.4° stddev, 052.1°–067.7° range
-    Wind-relative:     89.9° off wind (wind 329.8°)
-    Acceleration:      15.7→17.4 kts in 13.0 sec / 110.6 m (0.13 kts/s)
+    10s around peak:   16.729 kts (10 sec, 86.064 m, 2022-10-14 14:36:22 +0000 UTC, port)
+    10s speeds:        16.3 → 16.6 → 16.7 → 16.9 → 17.3 → [17.4] → [17.4] → 16.5 → 16.0 → 16.1
+    10s headings:      54° → 55° → 54° → 55° → 60° → 64° → 66° → 64° → 65° → 68°
+    Heading evolution: 55.7° → 65.3° (+9.5°, +1.65°/s)
+    Acceleration:      15.7 → 17.4 kts in 13.0 sec / 110.6 m (0.13 kts/s)
     Above thresholds:  >16.4 kts: 7.0 sec / 61.2 m, >15.4 kts: 23.0 sec / 192.3 m, >14.4 kts: 25.0 sec / 207.5 m
     Stability Score:   66/100 (heading 15/40, retention 31/35, acceleration 20/25)
 
   Run 3:
     Peak:              17.216 kts (2 sec, 17.714 m, 2022-10-14 14:41:55 +0000 UTC, port)
-    10s around peak:   16.635 kts (10 sec, 85.577 m, 2022-10-14 14:41:48 +0000 UTC, port)
     Position:          43.928004, 15.420211 → 43.928399, 15.421126
     Heading:           059.5° avg, ±2.5° stddev, 055.4°–063.8° range
-    Wind-relative:     89.7° off wind (wind 329.8°)
-    Acceleration:      15.5→17.2 kts in 9.0 sec / 77.1 m (0.19 kts/s)
+    10s around peak:   16.635 kts (10 sec, 85.577 m, 2022-10-14 14:41:48 +0000 UTC, port)
+    10s speeds:        15.6 → 16.1 → 16.4 → 16.6 → 16.7 → 16.9 → 17.1 → 17.2 → [17.3] → 16.6
+    10s headings:      61° → 61° → 61° → 60° → 58° → 56° → 55° → 58° → 62° → 59°
+    Heading evolution: 60.2° → 58.0° (-2.2°, -0.26°/s)
+    Acceleration:      15.5 → 17.2 kts in 9.0 sec / 77.1 m (0.19 kts/s)
     Above thresholds:  >16.2 kts: 8.0 sec / 69.3 m, >15.2 kts: 11.0 sec / 93.5 m, >14.2 kts: 32.0 sec / 256.2 m
     Stability Score:   90/100 (heading 31/40, retention 34/35, acceleration 25/25)
 
   Run 4:
     Peak:              17.215 kts (2 sec, 17.712 m, 2022-10-14 14:48:32 +0000 UTC, starboard)
-    10s around peak:   16.679 kts (10 sec, 85.803 m, 2022-10-14 14:48:27 +0000 UTC, starboard)
     Position:          43.926364, 15.430365 → 43.925693, 15.429840
     Heading:           209.5° avg, ±3.9° stddev, 198.3°–214.1° range
-    Wind-relative:     120.2° off wind (wind 329.8°)
-    Acceleration:      15.5→17.2 kts in 7.0 sec / 60.1 m (0.25 kts/s)
+    10s around peak:   16.679 kts (10 sec, 85.803 m, 2022-10-14 14:48:27 +0000 UTC, starboard)
+    10s speeds:        15.5 → 16.1 → 16.5 → 17.0 → [17.2] → [17.2] → [17.2] → 17.1 → 17.0 → 15.8
+    10s headings:      214° → 211° → 210° → 209° → 208° → 209° → 211° → 212° → 209° → 198°
+    Heading evolution: 210.7° → 208.1° (-2.7°, -0.85°/s)
+    Acceleration:      15.5 → 17.2 kts in 7.0 sec / 60.1 m (0.25 kts/s)
     Above thresholds:  >16.2 kts: 7.0 sec / 61.4 m, >15.2 kts: 10.0 sec / 85.8 m, >14.2 kts: 32.0 sec / 261.7 m
     Stability Score:   77/100 (heading 24/40, retention 35/35, acceleration 18/25)
 
   Run 5:
     Peak:              17.107 kts (2 sec, 17.601 m, 2022-10-14 14:42:44 +0000 UTC, port)
-    10s around peak:   16.175 kts (10 sec, 83.210 m, 2022-10-14 14:42:38 +0000 UTC, port)
     Position:          43.929907, 15.424378 → 43.930397, 15.425158
     Heading:           048.8° avg, ±4.3° stddev, 042.0°–056.5° range
-    Wind-relative:     79.0° off wind (wind 329.8°)
-    Acceleration:      15.4→17.1 kts in 16.0 sec / 131.7 m (0.11 kts/s)
+    10s around peak:   16.175 kts (10 sec, 83.210 m, 2022-10-14 14:42:38 +0000 UTC, port)
+    10s speeds:        15.5 → 15.6 → 15.5 → 15.6 → 16.2 → 16.8 → [17.1] → [17.1] → 16.4 → 15.7
+    10s headings:      46° → 47° → 43° → 42° → 46° → 50° → 52° → 53° → 53° → 56°
+    Heading evolution: 44.9° → 52.9° (+8.0°, +1.33°/s)
+    Acceleration:      15.4 → 17.1 kts in 16.0 sec / 131.7 m (0.11 kts/s)
     Above thresholds:  >16.1 kts: 5.0 sec / 43.1 m, >15.1 kts: 20.0 sec / 163.9 m, >14.1 kts: 36.0 sec / 290.3 m
     Stability Score:   64/100 (heading 21/40, retention 25/35, acceleration 18/25)
 ```
