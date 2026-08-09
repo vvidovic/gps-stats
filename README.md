@@ -41,6 +41,8 @@ Flags:
       (integer number, for example: 10)
   -sf Save filtered points as a new GPX file without points detected as errors
       with suffix '.filtered.gpx' (optional)
+  -speeds Set how speeds are saved with -sf (optional, default keep)
+          (keep, remove, recalculate)
 
   -cs Clean up points where speed changes are more than given number of speed units (default 5 kts)
       Calculation uses 4 points. It calculates 3 speeds based on those points.

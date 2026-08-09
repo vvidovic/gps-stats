@@ -9,6 +9,15 @@ import (
 	"github.com/vvidovic/gps-stats/internal/version"
 )
 
+// GpxSpeedsMode controls how speed extension values are written when exporting GPX.
+type GpxSpeedsMode int64
+
+const (
+	GpxSpeedsKeep GpxSpeedsMode = iota
+	GpxSpeedsRemove
+	GpxSpeedsRecalculate
+)
+
 // Gpx contains all tracks from a GPX file.
 type Gpx struct {
 	XMLName  xml.Name  `xml:"gpx"`
@@ -134,6 +143,12 @@ func readPointGpx(trkpt Trkpt) (Point, error) {
 
 // SavePointsAsGpx save points as GPX file.
 func SavePointsAsGpx(p Points, w io.Writer) error {
+	return SavePointsAsGpxWithSpeeds(p, w, GpxSpeedsKeep)
+}
+
+// SavePointsAsGpxWithSpeeds save points as GPX file and controls how speed
+// values are written to track point extensions.
+func SavePointsAsGpxWithSpeeds(p Points, w io.Writer, speedsMode GpxSpeedsMode) error {
 	gpx := Gpx{
 		XMLNS:   "http://www.topografix.com/GPX/1/1",
 		Ns3:     "http://www.garmin.com/xmlschemas/TrackPointExtension/v1",
@@ -156,8 +171,16 @@ func SavePointsAsGpx(p Points, w io.Writer) error {
 			Lon:  p.lon,
 			Time: p.ts,
 			Ele:  p.ele}
-		if p.speed != nil || p.hr != nil {
-			trkpt.Extensions = &Extensions{TrackPointExtension: &TrackPointExtension{Speed: *p.speed, Hr: *p.hr}}
+
+		speedValue := speedValueForExport(ps, pIdx, speedsMode)
+		if speedValue != nil || p.hr != nil {
+			trkpt.Extensions = &Extensions{TrackPointExtension: &TrackPointExtension{}}
+			if speedValue != nil {
+				trkpt.Extensions.TrackPointExtension.Speed = *speedValue
+			}
+			if p.hr != nil {
+				trkpt.Extensions.TrackPointExtension.Hr = *p.hr
+			}
 		}
 		trkpts = append(trkpts, trkpt)
 	}
@@ -175,4 +198,26 @@ func SavePointsAsGpx(p Points, w io.Writer) error {
 	}
 	_, err = w.Write(byteVal)
 	return err
+}
+
+func speedValueForExport(ps []Point, pIdx int, speedsMode GpxSpeedsMode) *float64 {
+	p := ps[pIdx]
+	switch speedsMode {
+	case GpxSpeedsKeep:
+		return p.speed
+	case GpxSpeedsRemove:
+		return nil
+	case GpxSpeedsRecalculate:
+		if pIdx == 0 {
+			return nil
+		}
+		duration := p.ts.Sub(ps[pIdx-1].ts).Seconds()
+		if duration <= 0 {
+			return nil
+		}
+		speedValue := distance(ps[pIdx-1], p) / duration
+		return &speedValue
+	default:
+		return p.speed
+	}
 }

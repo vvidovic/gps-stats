@@ -20,6 +20,7 @@ var (
 	speedUnitsFlag           *string
 	series2sFlag             *int
 	saveFilteredGpxFlag      *bool
+	speedsFlag               *string
 	windDirFlag              *float64
 	autoWindDirFlag          *string
 	amazfitFlag              *bool
@@ -41,6 +42,7 @@ func main() {
 	series2sFlag = flag.Int("s2s", 0,
 		"Calculate the series of top n 2 sec speeds, provide a number of top speeds to show - can be used only with '-t all' (default)")
 	saveFilteredGpxFlag = flag.Bool("sf", false, "Save filtered track to a new GPX file")
+	speedsFlag = flag.String("speeds", "keep", "Set speed handling when -sf saves a GPX file (keep, remove, recalculate - default keep)")
 	windDirFlag = flag.Float64("wd", -1, "Wind direction in degrees (0-360, degree from where it comes from)")
 	autoWindDirFlag = flag.String("awd", "", "Auto-detect wind direction (optionally specify 'jibe' or 'tack' as the more common maneuver)")
 	amazfitFlag = flag.Bool("amazfit", false, "Adjust algorithm for Amazfit T-Rex Pro watch")
@@ -110,6 +112,20 @@ func main() {
 			return
 		}
 
+		gpxSpeedsMode := stats.GpxSpeedsKeep
+		switch *speedsFlag {
+		case "keep":
+			gpxSpeedsMode = stats.GpxSpeedsKeep
+		case "remove":
+			gpxSpeedsMode = stats.GpxSpeedsRemove
+		case "recalculate":
+			gpxSpeedsMode = stats.GpxSpeedsRecalculate
+		default:
+			fmt.Printf("Invalid flag value for -speeds: '%s'.\n", *speedsFlag)
+			showUsage(2)
+			return
+		}
+
 		autoWindTurn := stats.TurnJibe
 		switch *autoWindDirFlag {
 		case "":
@@ -136,6 +152,12 @@ func main() {
 			return
 		}
 
+		if isFlagPassed("speeds") && !*saveFilteredGpxFlag {
+			fmt.Println("Invalid flag combination: -speeds can be used only together with -sf.")
+			showUsage(2)
+			return
+		}
+
 		if autoWindTurn != stats.TurnUnknown && *windDirFlag != -1 {
 			fmt.Printf("Invalid flag combination -awd: '%s', -wd: %f (can't set both at the same time).\n", *autoWindDirFlag, *windDirFlag)
 			showUsage(2)
@@ -143,14 +165,24 @@ func main() {
 		}
 
 		for i := 0; i < len(flag.Args()); i++ {
-			printStatsForFile(flag.Args()[i], statType, *series2sFlag, speedUnits, *windDirFlag, autoWindTurn, *amazfitFlag, *debugFlag)
+			printStatsForFile(flag.Args()[i], statType, *series2sFlag, speedUnits, gpxSpeedsMode, *windDirFlag, autoWindTurn, *amazfitFlag, *debugFlag)
 		}
 	}
 }
 
+func isFlagPassed(name string) bool {
+	passed := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			passed = true
+		}
+	})
+	return passed
+}
+
 func printStatsForFile(
-	filePath string, statType stats.StatFlag, series2s int, speedUnits stats.UnitsFlag, windDir float64, autoWindTurn stats.TurnType,
-	amazfit bool, debug bool) {
+	filePath string, statType stats.StatFlag, series2s int, speedUnits stats.UnitsFlag, gpxSpeedsMode stats.GpxSpeedsMode,
+	windDir float64, autoWindTurn stats.TurnType, amazfit bool, debug bool) {
 	f, err := os.Open(filePath)
 	if err != nil {
 		return
@@ -190,7 +222,7 @@ func printStatsForFile(
 			return
 		}
 
-		err = stats.SavePointsAsGpx(points, f)
+		err = stats.SavePointsAsGpxWithSpeeds(points, f, gpxSpeedsMode)
 		if err != nil {
 			fmt.Printf("Error saving file '%s' for GPX export: %v\n", newFilePath, err)
 			if statType == stats.StatAll {
@@ -248,6 +280,8 @@ func showUsage(exitStatus int) {
 	fmt.Println("      (integer number, for example: 10)")
 	fmt.Println("  -sf Save filtered points as a new GPX file without points detected as errors")
 	fmt.Println("      with suffix '.filtered.gpx' (optional)")
+	fmt.Println("  -speeds Set how speeds are saved with -sf (optional, default keep)")
+	fmt.Println("          (keep, remove, recalculate)")
 	fmt.Println("")
 	fmt.Println("  -cs Clean up points where speed changes are more than given number of speed units (default 5 kts)")
 	fmt.Println("      Calculation uses 4 points. It calculates 3 speeds based on those points.")
