@@ -35,8 +35,8 @@ func main() {
 	versionFlag = flag.Bool("v", false, "Show gps-stats version")
 	statTypeFlag = flag.String("t", "all",
 		"Set the statistics type to print (all, dist, dur, 2s, 10sAvg, 10s1, 10s2, 10s3, 10s4, 10s5, 15m, 1h, 100m, 1nm, alpha - default all)")
-	cleanupDeltaSpeedFlag = flag.Float64("cs", 0,
-		"Clean up points where speed changes are more than given number of speed units (default 5 kts)")
+	cleanupDeltaSpeedFlag = flag.Float64("cs", -1.0,
+		"Clean up points where speed changes are more than given number of speed units (default 5 kts), put 0 to skip cleanup")
 	speedUnitsFlag = flag.String("su", "kts",
 		"Set the speed units printed (kts, kmh, ms - default kts)")
 	series2sFlag = flag.Int("s2s", 0,
@@ -204,11 +204,14 @@ func printStatsForFile(
 
 	pointsNo := len(points.Ps)
 	cleanupDeltaSpeed := *cleanupDeltaSpeedFlag
-	if cleanupDeltaSpeed == 0 {
-		cleanupDeltaSpeed = stats.MsToUnits(stats.KtsToMs(5.0), speedUnits)
+	ps := points.Ps
+	if cleanupDeltaSpeed != 0 {
+		if cleanupDeltaSpeed == -1.0 {
+			cleanupDeltaSpeed = stats.MsToUnits(stats.KtsToMs(5.0), speedUnits)
+		}
+		ps = stats.CleanUp(points, cleanupDeltaSpeed, speedUnits, amazfit, debug)
+		points.Ps = ps
 	}
-	ps := stats.CleanUp(points, cleanupDeltaSpeed, speedUnits, amazfit, debug)
-	points.Ps = ps
 	pointsCleanedNo := len(ps)
 
 	if *saveFilteredGpxFlag {
@@ -287,6 +290,7 @@ func showUsage(exitStatus int) {
 	fmt.Println("      Calculation uses 4 points. It calculates 3 speeds based on those points.")
 	fmt.Println("      After that, 2 speed changes are calculated and difference between those changes is")
 	fmt.Println("      used to filter points.")
+	fmt.Println("      Set to 0 to skip cleanup.")
 	fmt.Println("")
 	fmt.Println("  -amazfit Adjust algorithm for Amazfit T-Rex Pro watch tracks.")
 	fmt.Println("           With tracks where there are almost all points (each 1 sec) but some are missing,")

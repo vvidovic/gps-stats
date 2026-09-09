@@ -48,6 +48,7 @@ Flags:
       Calculation uses 4 points. It calculates 3 speeds based on those points.
       After that, 2 speed changes are calculated and difference between those changes is
       used to filter points.
+      Set to 0 to skip cleanup.
 
   -amazfit Adjust algorithm for Amazfit T-Rex Pro watch tracks.
            With tracks where there are almost all points (each 1 sec) but some are missing,
@@ -58,6 +59,7 @@ Flags:
   -speed-runs-details-secs Set the analysis window and duplicate filtering interval in seconds (default 10)
 
   -d Show debug information (each detected turn details)
+
 
 
 Examples:
