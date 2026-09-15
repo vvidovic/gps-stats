@@ -19,32 +19,48 @@ func (s Stats) WindDirectionKnown() bool {
 }
 
 type speedRunDetails struct {
-	peakTrack        Track
-	windowTrack      Track
-	start            Point
-	end              Point
-	samples          []speedRunSample
-	headingEvolution speedRunHeadingEvolution
-	headingAvg       float64
-	headingStd       float64
-	headingMin       float64
-	headingMax       float64
-	windRelative     float64
-	windDirKnown     bool
-	windDir          float64
-	accelFromSpeed   float64
-	accelToSpeed     float64
-	accelDuration    float64
-	accelDistance    float64
-	accelMean        float64
-	thresholds       []speedRunThresholdDetails
-	stability        speedRunStabilityScore
+	peakTrack         Track
+	windowTrack       Track
+	timeRetention     []speedRunTimeRetention
+	distanceRetention []speedRunDistanceRetention
+	start             Point
+	end               Point
+	samples           []speedRunSample
+	headingEvolution  speedRunHeadingEvolution
+	headingAvg        float64
+	headingStd        float64
+	headingMin        float64
+	headingMax        float64
+	windRelative      float64
+	windDirKnown      bool
+	windDir           float64
+	accelFromSpeed    float64
+	accelToSpeed      float64
+	accelDuration     float64
+	accelDistance     float64
+	accelMean         float64
+	thresholds        []speedRunThresholdDetails
+	stability         speedRunStabilityScore
 }
 
 type speedRunThresholdDetails struct {
 	threshold float64
 	duration  float64
 	distance  float64
+}
+
+type speedRunTimeRetention struct {
+	duration float64
+	speed    float64
+	distance float64
+	valid    bool
+}
+
+type speedRunDistanceRetention struct {
+	distance float64
+	speed    float64
+	duration float64
+	valid    bool
 }
 
 type speedRunSample struct {
@@ -89,23 +105,24 @@ func SpeedRunsDetails(ps []Point, numRuns int, windowSecs float64, speedUnits Un
 
 	for i, run := range runs {
 		fmt.Fprintf(&b, "  Run %d:\n", i+1)
-		fmt.Fprintf(&b, "    Peak:              %s\n", run.peakTrack.TxtLine())
-		fmt.Fprintf(&b, "    Position:          %.6f, %.6f → %.6f, %.6f\n", run.start.lat, run.start.lon, run.end.lat, run.end.lon)
-		fmt.Fprintf(&b, "    Heading:           %05.1f° avg, ±%.1f° stddev, %05.1f°–%05.1f° range\n", run.headingAvg, run.headingStd, run.headingMin, run.headingMax)
-		fmt.Fprintf(&b, "    %-18s %s\n", fmt.Sprintf("%.0fs around peak:", windowSecs), run.windowTrack.TxtLine())
-		fmt.Fprintf(&b, "    %-18s %s\n", fmt.Sprintf("%.0fs speeds:", windowSecs), formatSpeedSamples(run.samples))
-		fmt.Fprintf(&b, "    %-18s %s\n", fmt.Sprintf("%.0fs headings:", windowSecs), formatHeadingSamples(run.samples))
+		fmt.Fprintf(&b, "    Peak:               %s\n", run.peakTrack.TxtLine())
+		fmt.Fprintf(&b, "    Position:           %.6f, %.6f → %.6f, %.6f\n", run.start.lat, run.start.lon, run.end.lat, run.end.lon)
+		fmt.Fprintf(&b, "    Heading:            %05.1f° avg, ±%.1f° stddev, %05.1f°–%05.1f° range\n", run.headingAvg, run.headingStd, run.headingMin, run.headingMax)
+		fmt.Fprintf(&b, "    Time retention:     %s\n", formatTimeRetention(run.timeRetention, speedUnits))
+		fmt.Fprintf(&b, "    Distance retention: %s\n", formatDistanceRetention(run.distanceRetention, speedUnits))
+		fmt.Fprintf(&b, "    %-19s %s\n", fmt.Sprintf("%.0fs speeds:", windowSecs), formatSpeedSamples(run.samples))
+		fmt.Fprintf(&b, "    %-19s %s\n", fmt.Sprintf("%.0fs headings:", windowSecs), formatHeadingSamples(run.samples))
 		if run.headingEvolution.valid {
-			fmt.Fprintf(&b, "    Heading evolution: %.1f° → %.1f° (%+.1f°, %+.2f°/s)\n",
+			fmt.Fprintf(&b, "    Heading evolution:  %.1f° → %.1f° (%+.1f°, %+.2f°/s)\n",
 				run.headingEvolution.firstHalfAvg, run.headingEvolution.secondHalfAvg,
 				run.headingEvolution.drift, run.headingEvolution.trend)
 		}
 		if run.windDirKnown {
-			fmt.Fprintf(&b, "    Wind-relative:     %.1f° off wind (wind %.1f°)\n", run.windRelative, run.windDir)
+			fmt.Fprintf(&b, "    Wind-relative:      %.1f° off wind (wind %.1f°)\n", run.windRelative, run.windDir)
 		}
-		fmt.Fprintf(&b, "    Acceleration:      %.1f → %.1f %s in %.1f sec / %.1f m (%.2f %s/s)\n",
+		fmt.Fprintf(&b, "    Acceleration:       %.1f → %.1f %s in %.1f sec / %.1f m (%.2f %s/s)\n",
 			run.accelFromSpeed, run.accelToSpeed, speedUnits, run.accelDuration, run.accelDistance, run.accelMean, speedUnits)
-		fmt.Fprintf(&b, "    Above thresholds:  ")
+		fmt.Fprintf(&b, "    Above thresholds:   ")
 		for tIdx, threshold := range run.thresholds {
 			if tIdx > 0 {
 				fmt.Fprintf(&b, ", ")
@@ -113,7 +130,7 @@ func SpeedRunsDetails(ps []Point, numRuns int, windowSecs float64, speedUnits Un
 			fmt.Fprintf(&b, ">%.1f %s: %.1f sec / %.1f m", threshold.threshold, speedUnits, threshold.duration, threshold.distance)
 		}
 		fmt.Fprintf(&b, "\n")
-		fmt.Fprintf(&b, "    Stability Score:   %d/100 (heading %d/40, retention %d/35, acceleration %d/25)\n",
+		fmt.Fprintf(&b, "    Stability Score:    %d/100 (heading %d/40, retention %d/35, acceleration %d/25)\n",
 			run.stability.total, run.stability.heading, run.stability.retention, run.stability.acceleration)
 		if i < len(runs)-1 {
 			fmt.Fprintf(&b, "\n")
@@ -157,6 +174,8 @@ func findSpeedRuns(ps []Point, numRuns int, windowSecs float64, speedUnits Units
 		if !windowTrack.valid {
 			windowTrack = peak
 		}
+		timeRetention := timeRetentionDetails(ps, peak, []float64{10, 20, 30}, speedUnits)
+		distanceRetention := distanceRetentionDetails(ps, peak, []float64{100, 200, 500}, speedUnits)
 
 		start := windowTrack.ps[0]
 		end := windowTrack.ps[len(windowTrack.ps)-1]
@@ -169,25 +188,27 @@ func findSpeedRuns(ps []Point, numRuns int, windowSecs float64, speedUnits Units
 		stability := stabilityScore(ps, peak, windowTrack, headingStd, windowSecs, speedUnits)
 
 		run := speedRunDetails{
-			peakTrack:        peak,
-			windowTrack:      windowTrack,
-			start:            start,
-			end:              end,
-			samples:          samples,
-			headingEvolution: headingEvolution,
-			headingAvg:       headingAvg,
-			headingStd:       headingStd,
-			headingMin:       headingMin,
-			headingMax:       headingMax,
-			windDirKnown:     windDirKnown,
-			windDir:          windDir,
-			accelFromSpeed:   accelFromSpeed,
-			accelToSpeed:     peak.speed,
-			accelDuration:    accelDuration,
-			accelDistance:    accelDistance,
-			accelMean:        accelMean,
-			thresholds:       thresholds,
-			stability:        stability,
+			peakTrack:         peak,
+			windowTrack:       windowTrack,
+			timeRetention:     timeRetention,
+			distanceRetention: distanceRetention,
+			start:             start,
+			end:               end,
+			samples:           samples,
+			headingEvolution:  headingEvolution,
+			headingAvg:        headingAvg,
+			headingStd:        headingStd,
+			headingMin:        headingMin,
+			headingMax:        headingMax,
+			windDirKnown:      windDirKnown,
+			windDir:           windDir,
+			accelFromSpeed:    accelFromSpeed,
+			accelToSpeed:      peak.speed,
+			accelDuration:     accelDuration,
+			accelDistance:     accelDistance,
+			accelMean:         accelMean,
+			thresholds:        thresholds,
+			stability:         stability,
 		}
 		if windDirKnown && headingAvg >= 0 {
 			run.windRelative = absAngleDiff(headingAvg, windDir)
@@ -239,6 +260,91 @@ func peakTime(track Track) time.Time {
 		return time.Time{}
 	}
 	return track.ps[0].ts
+}
+
+func timeRetentionDetails(ps []Point, peak Track, durations []float64, speedUnits UnitsFlag) []speedRunTimeRetention {
+	retention := []speedRunTimeRetention{}
+	for _, duration := range durations {
+		track := findWindowTrackContainingPeak(ps, peak, duration, speedUnits)
+		if track.valid {
+			retention = append(retention, speedRunTimeRetention{
+				duration: duration,
+				speed:    track.speed,
+				distance: track.distance,
+				valid:    true,
+			})
+		} else {
+			retention = append(retention, speedRunTimeRetention{duration: duration})
+		}
+	}
+	return retention
+}
+
+func distanceRetentionDetails(ps []Point, peak Track, distances []float64, speedUnits UnitsFlag) []speedRunDistanceRetention {
+	retention := []speedRunDistanceRetention{}
+	for _, targetDistance := range distances {
+		track := findDistanceTrackContainingPeak(ps, peak, targetDistance, speedUnits)
+		if track.valid {
+			retention = append(retention, speedRunDistanceRetention{
+				distance: targetDistance,
+				speed:    track.speed,
+				duration: track.duration,
+				valid:    true,
+			})
+		} else {
+			retention = append(retention, speedRunDistanceRetention{distance: targetDistance})
+		}
+	}
+	return retention
+}
+
+func findDistanceTrackContainingPeak(ps []Point, peak Track, distanceMeters float64, speedUnits UnitsFlag) Track {
+	if len(ps) < 2 || len(peak.ps) == 0 {
+		return Track{speedUnits: speedUnits}
+	}
+
+	peakStart := peak.ps[0].ts
+	peakEnd := peak.ps[len(peak.ps)-1].ts
+	best := Track{speedUnits: speedUnits}
+	track := Track{speedUnits: speedUnits}
+	track = track.addPointMinDistance(ps[0], distanceMeters)
+	for i := 1; i < len(ps); i++ {
+		track = track.addPointMinDistance(ps[i], distanceMeters)
+		if track.valid && track.ps[0].ts.Before(peakStart.Add(time.Nanosecond)) && track.ps[len(track.ps)-1].ts.After(peakEnd.Add(-time.Nanosecond)) && best.speed < track.speed {
+			best = track
+		}
+	}
+	return best
+}
+
+func formatTimeRetention(retentions []speedRunTimeRetention, units UnitsFlag) string {
+	parts := []string{}
+	for _, retention := range retentions {
+		if retention.valid {
+			parts = append(parts, fmt.Sprintf("%.0fs: %.1f %s / %.0fm", retention.duration, retention.speed, units, retention.distance))
+		} else {
+			parts = append(parts, fmt.Sprintf("%.0fs: -", retention.duration))
+		}
+	}
+	if len(parts) == 0 {
+		return "-"
+	}
+	return strings.Join(parts, ", ")
+}
+
+func formatDistanceRetention(retentions []speedRunDistanceRetention, units UnitsFlag) string {
+	parts := []string{}
+	for _, retention := range retentions {
+		if retention.valid {
+			parts = append(parts, fmt.Sprintf("%.0fm: %.1f %s / %.1fs", retention.distance, retention.speed, units, retention.duration))
+		} else {
+			parts = append(parts, fmt.Sprintf(" %.0fm: -", retention.distance))
+		}
+	}
+	if len(parts) == 0 {
+		return " -"
+	}
+	return strings.Join(parts, ", ")
 }
 
 func headingStats(ps []Point) (float64, float64, float64, float64) {
